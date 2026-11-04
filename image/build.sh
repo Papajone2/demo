@@ -57,7 +57,9 @@ cp "$SOURCE/image/"{usb-gadget.sh,satooshi.service,satooshi-usb.service} "$ROOT/
 cp "$SOURCE/requirements-core.txt" "$ROOT/opt/satooshi/"
 chmod 755 "$ROOT/opt/satooshi/image/usb-gadget.sh"
 
-chroot "$ROOT" /usr/bin/qemu-arm-static /bin/bash -eux <<'CHROOT'
+# Keep the provisioning program out of stdin. Package-manager hooks can read
+# stdin and otherwise consume the remaining setup commands without executing them.
+cat > "$ROOT/tmp/satooshi-provision.sh" <<'CHROOT'
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get -y upgrade
@@ -79,6 +81,13 @@ if id pi >/dev/null 2>&1; then passwd -l pi; fi
 apt-get clean
 rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 CHROOT
+chroot "$ROOT" /usr/bin/qemu-arm-static /bin/bash -eux /tmp/satooshi-provision.sh </dev/null
+
+# Fail before packaging if provisioning did not install the boot services/user.
+chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/id satooshi
+chroot "$ROOT" /usr/bin/qemu-arm-static /bin/systemctl is-enabled \
+  satooshi-usb.service satooshi.service
+[[ -f "$ROOT/opt/satooshi/vendor/ecdsa/__init__.py" ]]
 
 cat >> "$ROOT/boot/firmware/config.txt" <<'CONFIG'
 
