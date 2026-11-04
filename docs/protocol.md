@@ -9,7 +9,8 @@ Request: `{"v":1,"id":"unique-id","method":"hello","params":{}}`
 Reply: `{"v":1,"id":"unique-id","ok":true,"result":{...}}`
 
 Errors have `ok:false,error:"..."`. Use a fresh ID for every request.
-Maximum 8192 requests per USB session; reconnect after the limit.
+The last 8192 request IDs are remembered for duplicate rejection. Every signing
+request still needs a fresh physical review, regardless of request-ID age.
 
 | Method | Parameters | Effect |
 |---|---|---|

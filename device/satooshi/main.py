@@ -28,16 +28,11 @@ def run():
 
     controller = Controller(Vault(args.data), emit)
     protocol = Protocol(controller)
-    buffer, dropping, previous_dtr = bytearray(), False, False
+    buffer, dropping = bytearray(), False
     try:
         while True:
-            dtr = bool(port.dtr)
-            if previous_dtr and not dtr:
-                controller.lock()
-                protocol.seen.clear()
-                buffer.clear()
-                outputs.clear()
-            previous_dtr = dtr
+            # pyserial's .dtr is a locally cached OUTPUT, not proof of host presence.
+            # Heartbeat expiry in controller.tick() is the authoritative USB timeout.
             chunk = port.read(4096)
             for byte in chunk:
                 if byte == 10:

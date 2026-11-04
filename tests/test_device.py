@@ -136,6 +136,14 @@ class DeviceTests(unittest.TestCase):
         self.vault.unlock("1234")
         self.assertEqual(self.vault.metadata()["failed"], 0)
 
+    def test_power_cut_during_final_charged_attempt_does_not_grant_more_tries(self):
+        self.vault.create(ENTROPY, "1234")
+        data = self.vault.metadata()
+        data["failed"] = 5
+        self.vault.atomic_write(self.vault.path, json.dumps(data).encode())
+        restarted = Vault(self.tmp.name)
+        self.assertFalse(restarted.exists)
+
     def test_existing_wallet_cannot_be_replaced_by_setup(self):
         self.configured()
         with self.assertRaises(ValueError):

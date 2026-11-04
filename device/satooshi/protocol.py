@@ -1,5 +1,6 @@
 """Bounded JSON-lines protocol. No shell, eval, seed export or remote button API."""
 import json
+from collections import deque
 
 MAX_FRAME = 4096
 
@@ -8,6 +9,7 @@ class Protocol:
     def __init__(self, controller):
         self.controller = controller
         self.seen = set()
+        self.order = deque()
 
     def handle(self, line):
         request_id = None
@@ -27,9 +29,10 @@ class Protocol:
                 raise ValueError("Duplicate request ID")
             if not isinstance(request.get("method"), str) or not isinstance(request.get("params", {}), dict):
                 raise ValueError("Invalid method or parameters")
-            if len(self.seen) >= 8192:
-                raise ValueError("Session limit reached; reconnect USB")
+            if len(self.order) == 8192:
+                self.seen.discard(self.order.popleft())
             self.seen.add(request_id)
+            self.order.append(request_id)
             result = self.controller.request(request["method"], request.get("params", {}), request_id)
             return dict(v=1, id=request_id, ok=True, result=result)
         except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:

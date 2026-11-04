@@ -28,6 +28,9 @@ class Vault:
         os.chmod(self.directory, 0o700)
         self.path = self.directory / "wallet.json"
         self.key_path = self.directory / "device.key"
+        # A power cut during the last charged attempt must not grant more tries.
+        if self.exists and self.metadata().get("failed", 0) >= 5:
+            self.wipe()
 
     @property
     def exists(self):
