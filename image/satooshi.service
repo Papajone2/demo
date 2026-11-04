@@ -1,0 +1,32 @@
+[Unit]
+Description=Satooshi Pro prototype device
+Requires=satooshi-usb.service
+After=satooshi-usb.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=satooshi
+Group=satooshi
+SupplementaryGroups=gpio i2c dialout
+WorkingDirectory=/opt/satooshi
+Environment=PYTHONPATH=/opt/satooshi/vendor:/opt/satooshi/device
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 -m satooshi.main
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/satooshi
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

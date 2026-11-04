@@ -1,0 +1,6 @@
+{
+  "name": "satooshi-pro-prototype",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test tests/serial.test.mjs" }
+}

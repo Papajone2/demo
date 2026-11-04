@@ -1,0 +1,12 @@
+[Unit]
+Description=Satooshi Pro USB serial gadget (no networking or shell)
+After=systemd-modules-load.service
+Before=satooshi.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/satooshi/image/usb-gadget.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

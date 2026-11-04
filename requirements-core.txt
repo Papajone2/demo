@@ -1,0 +1,4 @@
+mnemonic==0.21
+embit==0.8.0
+ecdsa==0.19.1
+six==1.17.0

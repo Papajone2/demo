@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.venv/
+.pythonlibs/
+vendor/
+build/
+dist/
+*.img
+*.img.xz
+*.img.gz
+*.zip
+*.log
+wallet.json
+device.key
+.env
+simulator-data/

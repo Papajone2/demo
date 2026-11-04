@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Satooshi Pro — Start</title>
+<meta name="description" content="Connect, set up and verify your Satooshi Pro DIY signing device.">
+<link rel="stylesheet" href="./style.css">
+<script type="module" src="./app.js"></script>
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+<header class="top">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"><span></span><span></span></span>
+    <span class="word">Satooshi <b>Pro</b></span>
+    <span class="tag">DIY prototype</span>
+  </div>
+  <a class="src" href="https://github.com/Papajone2/demo" target="_blank" rel="noopener">Build guide &amp; source</a>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <p class="eyebrow">Two buttons. One screen. Your keys stay put.</p>
+    <h1>Set up and sign with the device<br><em>in your hand.</em></h1>
+    <p class="lede">This page talks to your Raspberry Pi signer over USB. It never sees your recovery words or PIN, and nothing is sent anywhere until you press broadcast.</p>
+    <div class="warn" role="note">
+      <strong>Honest prototype.</strong> Satooshi Pro is a hobby build, not an audited commercial wallet. Use test funds. Your seed is generated and kept on the device and never leaves it. This page is separate from your Satooshi browser wallet and does not read, migrate or overwrite it.
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card device" id="deviceCard" aria-live="polite">
+      <div class="card-head">
+        <h2>Device</h2>
+        <span class="pill" id="connPill" data-tone="idle">Not connected</span>
+      </div>
+
+      <div id="unsupported" class="notice bad" hidden>
+        <strong>This browser cannot reach USB devices.</strong>
+        Open this page directly (not inside an embedded preview) in desktop Chrome or Edge over HTTPS or localhost.
+      </div>
+
+      <div class="dev-visual" aria-hidden="true">
+        <div class="pi">
+          <div class="screen" id="screenGlow"><span id="screenLabel">offline</span></div>
+          <div class="btns"><i class="b" id="btnA">A</i><i class="b" id="btnB">B</i></div>
+        </div>
+      </div>
+
+      <dl class="facts" id="facts" hidden>
+        <div><dt>Firmware</dt><dd id="fVersion">—</dd></div>
+        <div><dt>Wallet</dt><dd id="fConfigured">—</dd></div>
+        <div><dt>Lock</dt><dd id="fLocked">—</dd></div>
+        <div><dt>PIN attempts left</dt><dd id="fAttempts">—</dd></div>
+      </dl>
+
+      <div class="progress" id="progress" hidden>
+        <div class="progress-top"><span id="phaseText">Waiting</span><span id="stepText"></span></div>
+        <div class="bar"><span id="barFill"></span></div>
+        <p class="hint" id="actionHint">Follow the device screen.</p>
+        <p class="hint">This asks the device to stop; it does not press a button for you.</p>
+        <button class="btn ghost small" id="cancelBtn" type="button">Send cancellation request</button>
+      </div>
+
+      <p class="error" id="devError" role="alert" hidden></p>
+
+      <div class="actions" id="actions">
+        <button class="btn primary" id="connectBtn" type="button">Connect device</button>
+        <button class="btn primary" id="setupBtn" type="button" hidden>Create new wallet on device</button>
+        <button class="btn primary" id="unlockBtn" type="button" hidden>Unlock on device</button>
+        <button class="btn primary" id="addressBtn" type="button" hidden>Show and verify address</button>
+        <button class="btn ghost" id="pingBtn" type="button" hidden>Identify this device</button>
+        <button class="btn ghost" id="lockBtn" type="button" hidden>Lock now</button>
+        <button class="btn ghost" id="disconnectBtn" type="button" hidden>Disconnect</button>
+      </div>
+
+      <div class="controls">
+        <h3>On the device</h3>
+        <ul>
+          <li><kbd>A</kbd><span>Previous / reject</span></li>
+          <li><kbd>B</kbd><span>Next / choose</span></li>
+          <li><kbd>A</kbd>+<kbd>B</kbd><span>Confirm the shown page</span></li>
+        </ul>
+        <p class="hint">Up to five PIN attempts. Recovery words appear on the device only — write them on paper, never here.</p>
+      </div>
+
+      <details class="danger">
+        <summary>Reset device</summary>
+        <p>Deletes the wallet key from the device. Without your written 24 words, funds are lost. The device asks for two separate physical confirmations.</p>
+        <button class="btn danger-btn" id="resetBtn" type="button" disabled>Reset device…</button>
+      </details>
+    </section>
+
+    <section class="card send" id="sendCard">
+      <div class="card-head">
+        <h2>Send native ETH</h2>
+        <span class="pill" id="addrPill" data-tone="idle">Address not verified</span>
+      </div>
+
+      <div class="verified" id="verifiedBox" hidden>
+        <span class="label">Verified on device</span>
+        <code id="verifiedAddr"></code>
+        <p class="hint">Match every character with the device screen before receiving funds.</p>
+      </div>
+
+      <div class="locked-note" id="sendLocked">
+        <p>Connect, unlock and verify your address on the device to send.</p>
+        <ol class="steps" id="journey">
+          <li data-k="connect">Connect over USB</li>
+          <li data-k="setup">Set up or unlock</li>
+          <li data-k="address">Verify address on screen</li>
+          <li data-k="send">Review and sign</li>
+        </ol>
+      </div>
+
+      <form id="sendForm" hidden novalidate>
+        <fieldset id="netSet">
+          <legend>Network</legend>
+          <div class="seg">
+            <label><input type="radio" name="net" value="11155111" checked><span><b>Sepolia</b><small>TEST ETH</small></span></label>
+            <label class="real"><input type="radio" name="net" value="1"><span><b>Ethereum</b><small>REAL ETH</small></span></label>
+          </div>
+          <p class="notice real-warn" id="realWarn" hidden>Ethereum mainnet moves real money. This is unaudited prototype hardware.</p>
+        </fieldset>
+        <label class="field"><span>Destination address</span>
+          <input id="toInput" autocomplete="off" spellcheck="false" placeholder="0x…" inputmode="text"></label>
+        <label class="field"><span>Amount (ETH)</span>
+          <input id="amountInput" autocomplete="off" inputmode="decimal" placeholder="0.01"></label>
+        <p class="error" id="sendError" role="alert" hidden></p>
+        <button class="btn primary wide" id="reviewBtn" type="submit">Review and sign on device</button>
+        <p class="hint">Only native ETH transfers on Sepolia and Ethereum are implemented. No tokens, swaps, contracts, BTC or SOL.</p>
+      </form>
+
+      <div class="signed" id="signedBox" hidden>
+        <span class="label">Signed on device — not yet sent</span>
+        <dl>
+          <div><dt>Network</dt><dd id="sNet"></dd></div>
+          <div><dt>To</dt><dd><code id="sTo"></code></dd></div>
+          <div><dt>Amount</dt><dd id="sAmount"></dd></div>
+          <div><dt>Maximum fee</dt><dd id="sFee"></dd></div>
+        </dl>
+        <div class="row">
+          <button class="btn primary" id="broadcastBtn" type="button">Broadcast once</button>
+          <button class="btn ghost" id="discardBtn" type="button">Discard</button>
+        </div>
+        <p class="hint">Broadcast happens only when you click. It is attempted once and never retried automatically.</p>
+      </div>
+
+      <div class="sent" id="sentBox" hidden>
+        <span class="label" id="sentLabel">Submitted</span>
+        <p id="sentText"></p>
+        <code id="sentHash"></code>
+        <div class="row">
+          <a class="btn ghost" id="explorerLink" target="_blank" rel="noopener">Open in explorer</a>
+          <button class="btn ghost" id="receiptBtn" type="button">Watch receipt</button>
+        </div>
+        <p class="receipt" id="receiptText" hidden></p>
+      </div>
+
+      <p class="privacy">Privacy: the public RPC provider (publicnode.com) sees the addresses this page queries.</p>
+    </section>
+  </div>
+</main>
+
+<footer class="foot">
+  <span>Satooshi Pro 0.1.0 · open-source DIY signer · not audited</span>
+  <a href="https://github.com/Papajone2/demo" target="_blank" rel="noopener">github.com/Papajone2/demo</a>
+</footer>
+</body>
+</html>
