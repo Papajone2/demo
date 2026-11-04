@@ -61,9 +61,12 @@ chmod 755 "$ROOT/opt/satooshi/image/usb-gadget.sh"
 # stdin and otherwise consume the remaining setup commands without executing them.
 cat > "$ROOT/tmp/satooshi-provision.sh" <<'CHROOT'
 export DEBIAN_FRONTEND=noninteractive
+# DEBIAN_FRONTEND does not answer dpkg's conffile questions. Preserve the Pi
+# image's existing boot configuration explicitly, without reading any stdin.
+APT_OPTIONS=(-o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
 apt-get update
-apt-get -y upgrade
-apt-get install --no-install-recommends -y python3 python3-pip python3-cryptography \
+apt-get "${APT_OPTIONS[@]}" -y upgrade
+apt-get "${APT_OPTIONS[@]}" install --no-install-recommends -y python3 python3-pip python3-cryptography \
   python3-pycryptodome python3-pil python3-smbus python3-rpi.gpio python3-serial i2c-tools
 python3 -m pip install --no-deps --no-compile --target /opt/satooshi/vendor \
   -r /opt/satooshi/requirements-core.txt
