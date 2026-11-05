@@ -25,13 +25,13 @@ class Controller:
 
     def status(self):
         meta = self.vault.metadata() if self.vault.exists else {}
-        return dict(name="Satooshi Pro", version="0.1.0", configured=self.vault.exists,
+        return dict(name="Satooshi Pro", version="0.2.0", configured=self.vault.exists,
                     locked=self.entropy is None, phase=self.phase, step=self.step,
                     steps=24 if self.phase == "backup" else len(self.review.pages()) if self.review else 0,
                     attemptsRemaining=max(0, 5 - meta.get("failed", 0)),
                     pinEnabled=meta.get("pin", False), error=self.error,
                     capabilities=["ethereum-native-eip1559", "sepolia-native-eip1559"],
-                    prototype=True)
+                    controls="left-right-hold", prototype=True)
 
     def changed(self):
         self.emit({"event": "state", "data": self.status()})
@@ -142,6 +142,12 @@ class Controller:
                 self.result({"configured": True, "pinEnabled": True})
 
     def button(self, key):
+        if key == "cancel":
+            if self.phase != "home":
+                self.cancel()
+            elif self.entropy is not None:
+                self.lock()
+            return
         if key not in ("a", "b", "both"):
             return
         self.last_action = self.clock()
@@ -228,9 +234,7 @@ class Controller:
             if key == "a":
                 self.step = max(0, self.step - 1)
             elif key == "b":
-                if self.step == last:
-                    self.cancel()
-                else:
+                if self.step != last:
                     self.step += 1
                     self.visited.add(self.step)
             elif self.step == last and len(self.visited) == last + 1:
@@ -274,36 +278,38 @@ class Controller:
     def display(self):
         if self.phase == "backup":
             return ("Recovery word %d/24" % (self.step + 1),
-                    [self._words()[self.step], "Write on paper only"], "A back B next / both OK")
+                    [self._words()[self.step], "Write on paper only"], "Left/right; hold right")
         if self.phase == "quiz":
             return ("Check word #%d" % (self.quiz_positions[self.quiz_index] + 1),
                     [self.quiz[self.choice], "%d/3 backup check" % (self.quiz_index + 1)],
-                    "A/B choose Both confirm")
+                    "Hold right to select")
         if self.phase == "pin":
             title = {"new": "Choose PIN", "confirm": "Repeat PIN", "unlock": "Unlock"}[self.pin_mode]
             selection = str(self.digit) if self.digit < 10 else "Done" if self.digit == 10 else "Delete"
             lines = ["*" * len(self.pin), "> " + selection]
             if self.pin_mode == "unlock":
                 lines += ["! %d attempts left" % self.status()["attemptsRemaining"]]
-            return title, lines, "A/B choose Both select"
+            return title, lines, "Hold right to select"
         if self.phase == "review":
             title, lines = self.review.pages()[self.step]
-            return title, lines, "A back B next Both OK"
+            return title, lines, "Hold right to sign"
         if self.phase == "address":
             value = address(self.entropy)
-            return "Verify ETH address", [value[:21], value[21:]], "A cancel Both confirm"
+            return "Verify ETH address", [value[:21], value[21:]], "Hold right to confirm"
         if self.phase == "setup_confirm":
-            return "Create a new wallet?", ["DIY PROTOTYPE", "Test funds only"], "A cancel Both create"
+            return "Create a wallet?", ["Keys stay here", "Back up all 24 words"], "Hold right to create"
         if self.phase == "pin_choice":
-            return "Protect your wallet", ["> Set a PIN" if self.choice == 0 else "> No PIN"], "A/B choose Both OK"
+            return "Protect your wallet", ["> Set a PIN" if self.choice == 0 else "> No PIN"], "Hold right to select"
         if self.phase == "no_pin_confirm":
-            return "! No PIN protection", ["Anyone with the device", "can unlock this wallet"], "A back Both accept"
+            return "! No PIN protection", ["Anyone with the device", "can unlock this wallet"], "Hold right to accept"
         if self.phase == "unlock_confirm":
-            return "Unlock this wallet?", ["Check your computer"], "A cancel Both unlock"
+            return "Unlock this wallet?", ["Check your computer"], "Hold right to unlock"
         if self.phase == "reset":
             return "! Reset wallet?" if self.step == 0 else "! FINAL CONFIRMATION", [
-                "Deletes device wallet", "Have your paper backup"], "A cancel Both reset"
+                "Deletes device wallet", "Have your paper backup"], "Hold right to reset"
         if self.phase == "message":
-            return "COMPUTER MESSAGE", [self.message[i:i + 21] for i in range(0, len(self.message), 21)], "INFO ONLY / Both close"
+            return "COMPUTER MESSAGE", [self.message[i:i + 21] for i in range(0, len(self.message), 21)], "Hold right to close"
+        if not self.vault.exists and self.entropy is None:
+            return "SATOOSHI START", ["Head over to", "satooshi.io/start"], ""
         return "SATOOSHI PRO", ["Unlocked" if self.entropy is not None else "Locked" if self.vault.exists else "Welcome",
-                                 "Open your wallet's", "device setup page", "DIY prototype"], "Both: lock" if self.entropy else "Connect USB to begin"
+                                 "Your keys. Your wallet.", "Connect to Satooshi"], "Hold right: lock" if self.entropy else "Connect USB to begin"

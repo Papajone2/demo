@@ -6,8 +6,8 @@ const S = { state: null, address: null, busy: null, prepared: null, signed: null
 
 const ACTION_COPY = {
   setup: 'Creating your wallet. Write the 24 words on paper from the device screen, then pass the backup check.',
-  unlock: 'Confirm with A+B on the device and enter your PIN there if you set one.',
-  get_address: 'Compare the full address on the device screen, then confirm with A+B.',
+  unlock: 'Hold right to confirm on current firmware (both buttons on older firmware), then enter your PIN there if set.',
+  get_address: 'Compare the full address on the device screen, then hold right to confirm (both buttons on older firmware).',
   review_transfer: 'Read every page on the device. Confirm only if network, address, amount and fee match.',
   reset: 'The device asks you twice. Reject with A if you are unsure.',
   show_message: 'A labeled computer message is on the device screen. Dismiss it there.',

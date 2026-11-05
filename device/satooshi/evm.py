@@ -113,7 +113,7 @@ class Transfer:
             ("Maximum network fee", [units(d["gasLimit"] * d["maxFeePerGas"]) + " ETH"]),
             ("Review total", [units(d["value"] + d["gasLimit"] * d["maxFeePerGas"]) + " ETH",
                               "Nonce " + str(d["nonce"])]),
-            ("Sign transaction?", ["Both buttons: sign", "A: back / B: cancel"]),
+            ("Sign transaction?", ["Hold right to sign", "Hold left to cancel"]),
         ]
 
     def sign(self, entropy):

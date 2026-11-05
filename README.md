@@ -1,4 +1,4 @@
-# Satooshi Pro — DIY prototype
+# Satooshi Pro
 
 A two-button, USB-connected **Raspberry Pi Zero W / WH** signing prototype.
 This is experimental software, **not an audited commercial hardware wallet**.
@@ -6,6 +6,21 @@ Use test coins. A Linux Pi with a microSD card does not provide a secure element
 tamper resistance, verified boot, or protection against a compromised OS.
 
 ## What is implemented
+
+The main Satooshi web app now includes a Hardware workspace. Its default Preview
+is a home-use presentation with example balances and simulated multi-coin flows.
+Those flows never sign or broadcast transactions. A connected device can display
+a clearly labeled preview message and require a physical dismissal; that is not
+a financial signature. Real ETH mode remains a separate explicit choice and
+supports only the actual firmware capabilities below. Browser-held keys and
+funds are never migrated to the hardware account.
+
+### Two-button navigation
+
+Firmware 0.2 shows a left triangle at the lower left and a right triangle at
+the lower right. Tap to navigate; hold right for about one second and release
+to select or approve. Hold left to cancel (or lock from Home).
+Pressing both physical buttons together does nothing. The joystick is unused.
 
 - Original Zero W/WH **ARMv6, 32-bit Raspberry Pi OS**, not Zero 2 W-only code.
 - Provisional Adafruit **128×64 OLED Bonnet, product 3531**, SSD1306 I2C at `0x3c`.
@@ -114,7 +129,9 @@ prepare the transaction, and inspect every page on the device:
 2. The **entire destination address**, never just a shortened prefix.
 3. Maximum network fee.
 4. Maximum total debit and nonce.
-5. Both buttons to sign; B cancels at the final page.
+5. Hold the right button for about one second and release to sign.
+   Hold left to cancel. Tap left/right to move through pages.
+   Firmware 0.1 uses both buttons to confirm; 0.2 uses only left/right.
 
 The device signs the exact reviewed payload, not arbitrary computer text.
 The browser then asks separately before broadcasting **once**. If broadcasting

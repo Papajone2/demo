@@ -25,6 +25,7 @@ class Bonnet:
             self.command(command)
         self.previous, self.stable, self.since = (False, False), (False, False), time.monotonic()
         self.pressed = set()
+        self.press_started = None
         self.last_screen = None
 
     def command(self, value):
@@ -38,13 +39,21 @@ class Bonnet:
         if now - self.since < 0.035 or raw == self.stable:
             return None
         self.stable = raw
+        if any(raw) and self.press_started is None:
+            self.press_started = now
         if raw[0]:
             self.pressed.add("a")
         if raw[1]:
             self.pressed.add("b")
         if not any(raw) and self.pressed:
-            key = "both" if len(self.pressed) == 2 else next(iter(self.pressed))
+            held = now - self.press_started if self.press_started is not None else 0
+            # Left/right only: a deliberate right hold selects/confirms.
+            # Simultaneous presses are ignored so an accidental chord cannot sign.
+            key = None if len(self.pressed) == 2 else (
+                "both" if "b" in self.pressed and held >= 0.9 else
+                "cancel" if "a" in self.pressed and held >= 0.9 else next(iter(self.pressed)))
             self.pressed = set()
+            self.press_started = None
             return key
         return None
 
@@ -54,19 +63,27 @@ class Bonnet:
         title, body, footer = screen
         image = self.Image.new("1", (128, 64))
         draw = self.ImageDraw.Draw(image)
-        draw.text((0, 0), title[:21], font=self.font, fill=1)
-        lines = []
-        for line in body:
-            lines.extend(textwrap.wrap(str(line), width=21, break_long_words=True,
-                                       break_on_hyphens=False) or [""])
-        if len(lines) > 4:
-            # Fail closed rather than silently truncate a transaction or recovery word.
-            raise ValueError("Device screen overflow; action cannot be safely reviewed")
-        for i, line in enumerate(lines):
-            draw.text((0, 13 + i * 10), line, font=self.font, fill=1)
-        # Compact instructions are already explained on the web companion.
-        footer = footer.replace("Both", "AB").replace("buttons", "").replace("confirm", "OK")
-        draw.text((0, 55), footer[:21], font=self.font, fill=1)
+        if title == "SATOOSHI START":
+            # Replace this neutral mark with the user's logo when provided.
+            draw.rectangle((56, 6, 71, 21), fill=1)
+            for y, line in ((29, "Head over to"), (41, "satooshi.io/start")):
+                bounds = draw.textbbox((0, 0), line, font=self.font)
+                draw.text(((128 - (bounds[2] - bounds[0])) // 2, y), line,
+                          font=self.font, fill=1)
+        else:
+            draw.text((1, 0), title[:21], font=self.font, fill=1)
+            lines = []
+            for line in body:
+                lines.extend(textwrap.wrap(str(line), width=21, break_long_words=True,
+                                           break_on_hyphens=False) or [""])
+            if len(lines) > 4:
+                # Never truncate a transaction or recovery word.
+                raise ValueError("Device screen overflow; action cannot be safely reviewed")
+            for i, line in enumerate(lines):
+                draw.text((1, 12 + i * 10), line, font=self.font, fill=1)
+        # Dedicated footer: no crowded A/B instructions, only physical directions.
+        draw.polygon([(3, 59), (8, 55), (8, 63)], fill=1)
+        draw.polygon([(124, 59), (119, 55), (119, 63)], fill=1)
         self.command(0x21)
         self.command(0)
         self.command(127)

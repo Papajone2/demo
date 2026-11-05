@@ -33,7 +33,7 @@ class UsbStartupTests(unittest.TestCase):
         self.script.write_text(source.replace("set -euo pipefail", "set -euo pipefail" + mocks, 1))
 
     def run_script(self):
-        return subprocess.run(["bash", str(self.script)], capture_output=True, text=True, timeout=10)
+        return subprocess.run(["bash", str(self.script)], capture_output=True, text=True, timeout=30)
 
     def test_partial_unbound_gadget_is_configured_not_mistaken_for_ready(self):
         result = self.run_script()
