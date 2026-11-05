@@ -306,4 +306,4 @@ class Controller:
         if self.phase == "message":
             return "COMPUTER MESSAGE", [self.message[i:i + 21] for i in range(0, len(self.message), 21)], "INFO ONLY / Both close"
         return "SATOOSHI PRO", ["Unlocked" if self.entropy is not None else "Locked" if self.vault.exists else "Welcome",
-                                 "satooshi.io/start", "DIY prototype"], "Both: lock" if self.entropy else "Connect USB to begin"
+                                 "Open your wallet's", "device setup page", "DIY prototype"], "Both: lock" if self.entropy else "Connect USB to begin"

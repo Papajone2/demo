@@ -160,7 +160,7 @@ $('connectBtn').addEventListener('click', () => {
   const pending = device.connect(); // must run synchronously within the click gesture
   S.connecting = true; clearSession(); showErr($('devError'), ''); render();
   pending.then(st => { S.state = st; $('connPill').dataset.tone = 'ok'; })
-    .catch(e => { if (e.name !== 'NotFoundError') showErr($('devError'), e.message); })
+    .catch(e => showErr($('devError'), e.message))
     .finally(() => { S.connecting = false; render(); });
 });
 $('setupBtn').addEventListener('click', () => run('setup'));

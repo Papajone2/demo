@@ -1,9 +1,9 @@
 [Unit]
 Description=Satooshi Pro prototype device
-Requires=satooshi-usb.service
+Wants=satooshi-usb.service
 After=satooshi-usb.service
-StartLimitIntervalSec=60
-StartLimitBurst=5
+StartLimitIntervalSec=180
+StartLimitBurst=30
 
 [Service]
 Type=simple
@@ -15,7 +15,7 @@ Environment=PYTHONPATH=/opt/satooshi/vendor:/opt/satooshi/device
 Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=/usr/bin/python3 -m satooshi.main
 Restart=on-failure
-RestartSec=3
+RestartSec=5
 UMask=0077
 NoNewPrivileges=yes
 ProtectSystem=strict

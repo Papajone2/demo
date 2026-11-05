@@ -2,11 +2,16 @@
 Description=Satooshi Pro USB serial gadget (no networking or shell)
 After=systemd-modules-load.service
 Before=satooshi.service
+StartLimitIntervalSec=180
+StartLimitBurst=6
 
 [Service]
 Type=oneshot
 ExecStart=/opt/satooshi/image/usb-gadget.sh
 RemainAfterExit=yes
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=45
 
 [Install]
 WantedBy=multi-user.target

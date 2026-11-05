@@ -19,6 +19,7 @@ def run():
     args = parser.parse_args()
     os.umask(0o077)
     hardware = Bonnet()
+    hardware.render(("SATOOSHI PRO", ["Starting USB...", "Use USB data socket", "not PWR IN"], "DIY prototype"))
     port = serial.Serial(args.port, baudrate=115200, timeout=0, write_timeout=2)
     outputs = []
 

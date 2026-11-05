@@ -159,6 +159,11 @@ input:disabled { opacity: .55; }
 .signed dt { color: var(--dim); }
 .signed dd { margin: 0; font-family: var(--mono); }
 .row { display: flex; gap: 10px; flex-wrap: wrap; }
+#connectionHelp { font-size: 13px; color: var(--mute); }
+#connectionHelp summary { cursor: pointer; color: var(--ink); }
+#connectionHelp ul { display: block; list-style: disc; padding-left: 18px; }
+#connectionHelp li { display: list-item; margin: 8px 0; }
+#connectionHelp pre { max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
 .sent p { margin: 0 0 8px; font-size: 14px; color: var(--mute); }
 .sent code { display: block; font-size: 13px; margin-bottom: 12px; }
 .sent[data-tone="warn"] .label { color: var(--orange); }

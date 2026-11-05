@@ -35,6 +35,19 @@ informational and cannot authorize a payment.
 
 ## Build an image in GitHub
 
+The browser companion filters the port chooser to development USB ID
+`1d6b:0104`. Built-in ttyS ports and other hardware wallets are intentionally
+not listed. These shared development IDs do **not** authenticate a device.
+Open **Connection help** on the setup page for Linux permissions and
+host-versus-VM USB troubleshooting.
+
+Updated images place a non-secret `satooshi-usb-status.txt` on the SD card's
+boot partition. It records startup stage, result, controller binding and serial
+node presence, never seed/PIN/address data. `serial_ready` means the Pi prepared
+its USB interface, **not** that a computer enumerated it. Inspect this file
+with the Pi powered off if USB detection fails. Do not reflash a funded device
+without its paper backup.
+
 1. Open **Actions → Build Pi Zero W image → Run workflow → main → Run workflow**.
 2. Wait for a green run. Open the run and download its **Artifacts** archive.
 3. Extract the archive. It contains:

@@ -76,6 +76,25 @@
         <button class="btn ghost" id="disconnectBtn" type="button" hidden>Disconnect</button>
       </div>
 
+      <details class="controls" id="connectionHelp">
+        <summary>Connection help</summary>
+        <p>The chooser lists only this prototype’s USB identity. An empty list means the browser cannot see an eligible device; it is not proof that the Pi failed to boot.</p>
+        <ul>
+          <li>Use the Pi socket marked <strong>USB</strong>, not <strong>PWR IN</strong>, and a known data cable.</li>
+          <li>Open this page directly in desktop Chrome or Edge on the computer physically connected to the Pi.</li>
+          <li>Linux in a virtual machine, remote session or Chromebook container may see different USB devices from the browser. Check device forwarding on the actual host.</li>
+        </ul>
+        <p>In the connected Linux computer’s terminal:</p>
+        <pre><code>lsusb -d 1d6b:0104
+ls -l /dev/ttyACM*</code></pre>
+        <p>No matching USB device: check cable, socket and host USB access first. A matching device but no ttyACM port: check the host CDC ACM driver. An existing port that cannot open: close other serial apps and check its group permissions.</p>
+        <p>If the port belongs to <code>dialout</code>, adding your user to that group grants serial-device access. On distributions using that group:</p>
+        <pre><code>sudo usermod -aG dialout "$USER"</code></pre>
+        <p>Log out and back in after a group change. Sandboxed browsers can require additional device permission. Do not run the browser as root or make the port world-writable.</p>
+        <p>New images write <code>satooshi-usb-status.txt</code> to the SD card’s boot partition. It reports USB startup only, never seed words, PINs or wallet addresses. Read it with the Pi disconnected from power; do not reflash a funded device without its paper backup.</p>
+        <p>A Trezor uses a different USB interface and is not expected in this serial chooser. The shared prototype USB IDs are a discovery filter, not proof of authenticity.</p>
+      </details>
+
       <div class="controls">
         <h3>On the device</h3>
         <ul>

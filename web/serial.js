@@ -1,4 +1,13 @@
 /** Satooshi Pro USB client. No secrets, PINs or seed words are requested or stored. */
+export const USB_FILTER = Object.freeze({ usbVendorId: 0x1d6b, usbProductId: 0x0104 });
+
+export function connectionErrorMessage(error) {
+  if (error.name === 'NotFoundError') return 'No Satooshi Pro selected. If the list is empty, open Connection help below.';
+  if (error.name === 'SecurityError') return 'Open this page in a separate desktop Chrome or Edge tab, not an embedded preview. Check the browser’s serial-device permissions.';
+  if (error.name === 'NetworkError') return 'Could not open the USB port. Close other apps using the device and check Linux serial-port permissions in Connection help.';
+  return error.message || 'USB connection failed. Open Connection help below.';
+}
+
 export class SatooshiDevice extends EventTarget {
   constructor() {
     super();
@@ -12,8 +21,12 @@ export class SatooshiDevice extends EventTarget {
   async connect() {
     if (!SatooshiDevice.supported()) throw new Error('Open this page directly in desktop Chrome or Edge over HTTPS (or localhost).');
     if (this.port) throw new Error('A device is already connected.');
-    const port = await navigator.serial.requestPort();
     try {
+      const port = await navigator.serial.requestPort({ filters: [USB_FILTER] });
+      const info = port.getInfo();
+      if (info.usbVendorId !== USB_FILTER.usbVendorId || info.usbProductId !== USB_FILTER.usbProductId) {
+        throw new Error('This is not the USB identity used by Satooshi Pro. Do not select a built-in serial port.');
+      }
       await port.open({ baudRate: 115200 });
       this.port = port;
       this.writer = port.writable.getWriter();
@@ -27,7 +40,10 @@ export class SatooshiDevice extends EventTarget {
         this.state = s; this.notify('state', s);
       }).catch(error => this.disconnect(error.message)), 15000);
       return state;
-    } catch (error) { await this.disconnect(); throw error; }
+    } catch (error) {
+      await this.disconnect();
+      throw new Error(connectionErrorMessage(error), { cause: error });
+    }
   }
   async request(method, params = {}, id = crypto.randomUUID()) {
     if (!this.writer) throw new Error('Connect your device first.');
