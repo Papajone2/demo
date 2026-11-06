@@ -302,13 +302,48 @@ class DeviceTests(unittest.TestCase):
                 self.device.request(method, {}, method)
 
     def test_usb_state_never_contains_secret_screen_or_pin(self):
-        self.device.request("setup", {}, "s")
-        self.device.button("both")
-        words = WORDLIST.to_mnemonic(self.device.entropy)
-        self.assertNotIn(words, json.dumps(self.events))
-        self.assertNotIn(self.device.display()[1][0], json.dumps(self.events))
-        self.assertNotIn("entropy", json.dumps(self.events))
-        self.assertNotIn("privateKey", json.dumps(self.events))
+        # Public fixtures only. "step" deliberately collides with the public
+        # status key that made the old serialized-substring assertion flaky.
+        step_entropy = (WORDLIST.wordlist.index("step") << 245).to_bytes(32, "big")
+        for entropy in (ENTROPY, step_entropy):
+            with self.subTest(first_word=WORDLIST.to_mnemonic(entropy).split()[0]):
+                self.events.clear()
+                self.device = Controller(self.vault, self.events.append, clock=lambda: self.now)
+                self.device.request("setup", {}, "s")
+                with patch("satooshi.controller.os.urandom", return_value=entropy):
+                    self.device.button("both")
+                words = WORDLIST.to_mnemonic(entropy)
+                displayed_word = self.device.display()[1][0]
+                self.assertEqual(displayed_word, words.split()[0])
+
+                def assert_public(value):
+                    if isinstance(value, dict):
+                        for key, child in value.items():
+                            self.assertNotIn(key.lower(), {
+                                "entropy", "privatekey", "seed", "mnemonic",
+                                "recoveryphrase", "pin", "pin_first",
+                            })
+                            assert_public(child)
+                    elif isinstance(value, list):
+                        for child in value:
+                            assert_public(child)
+                    elif isinstance(value, str):
+                        # Inspect payload values, not JSON field names.
+                        self.assertNotEqual(displayed_word, value)
+                        self.assertNotIn(words, value)
+                        self.assertNotIn(entropy.hex(), value)
+
+                assert_public(self.events)
+                # Ensure this check still detects leaks, including nesting.
+                for leak in (
+                    {"data": {"word": displayed_word}},
+                    {"data": {"message": words}},
+                    {"data": {"entropy": entropy.hex()}},
+                    {"data": {"privateKey": "test-only"}},
+                    {"data": {"pin": "1234"}},
+                ):
+                    with self.assertRaises(AssertionError):
+                        assert_public(leak)
 
     def test_reconnect_unlock_reuses_identity(self):
         self.configured()
