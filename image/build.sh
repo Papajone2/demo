@@ -67,7 +67,7 @@ APT_OPTIONS=(-o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confo
 apt-get update
 apt-get "${APT_OPTIONS[@]}" -y upgrade
 apt-get "${APT_OPTIONS[@]}" install --no-install-recommends -y python3 python3-pip python3-cryptography \
-  python3-pycryptodome python3-pil python3-smbus python3-rpi.gpio python3-serial i2c-tools
+  python3-pycryptodome python3-pil python3-smbus python3-rpi.gpio python3-serial i2c-tools fonts-dejavu-core
 python3 -m pip install --no-deps --no-compile --target /opt/satooshi/vendor \
   -r /opt/satooshi/requirements-core.txt
 getent group gpio >/dev/null || groupadd --system gpio
@@ -118,10 +118,13 @@ find "$ROOT/var/log" -type f -exec truncate -s 0 {} \;
 chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/env \
   PYTHONPATH=/opt/satooshi/vendor:/opt/satooshi/device PYTHONDONTWRITEBYTECODE=1 \
   /usr/bin/python3 -c 'from satooshi.evm import address; from satooshi.vault import Vault; assert address(bytes(32)) == "0xF278cF59F82eDcf871d630F28EcC8056f25C1cdb"'
+chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/env \
+  PYTHONPATH=/opt/satooshi/vendor:/opt/satooshi/device PYTHONDONTWRITEBYTECODE=1 \
+  /usr/bin/python3 -c 'from satooshi.screen import Screen; from satooshi.controller import Controller; assert Screen().render(("SATOOSHI START", [], ""), phase="home").size == (128,64)'
 # This test vector is public, never saved as a wallet.
 [[ -z "$(find "$ROOT/var/lib/satooshi" -mindepth 1 -print -quit)" ]]
 COMMIT="$(git -C "$SOURCE" rev-parse HEAD)"
-printf '{"product":"Satooshi Pro","prototype":true,"target":"Pi Zero W/WH ARMv6","commit":"%s","base_sha256":"%s"}\n' \
+printf '{"product":"Satooshi Pro","firmware":"0.3.0","prototype":true,"target":"Pi Zero W/WH ARMv6","commit":"%s","base_sha256":"%s"}\n' \
   "$COMMIT" "$BASE_SHA" > "$SOURCE/dist/build-manifest.json"
 cp "$SOURCE/dist/build-manifest.json" "$ROOT/opt/satooshi/"
 sync

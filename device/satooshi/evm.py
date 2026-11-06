@@ -14,7 +14,7 @@ try:
 except ImportError:  # Raspberry Pi OS's Debian package uses this namespace.
     from Cryptodome.Hash import keccak
 
-CHAINS = {1: "Ethereum / real ETH", 11155111: "Sepolia / test ETH"}
+CHAINS = {1: "Ethereum", 11155111: "Sepolia test network"}
 WORDLIST = Mnemonic("english")
 
 
@@ -109,11 +109,13 @@ class Transfer:
         d = self.data
         return [
             ("Send ETH", [units(d["value"]), CHAINS[d["chainId"]]]),
-            ("Full destination", [d["to"][:21], d["to"][21:]]),
-            ("Maximum network fee", [units(d["gasLimit"] * d["maxFeePerGas"]) + " ETH"]),
+            ("Check address", [d["to"][:21], d["to"][21:]]),
+            ("Maximum fee", [units(d["gasLimit"] * d["maxFeePerGas"]) + " ETH"]),
             ("Review total", [units(d["value"] + d["gasLimit"] * d["maxFeePerGas"]) + " ETH",
-                              "Nonce " + str(d["nonce"])]),
-            ("Sign transaction?", ["Hold right to sign", "Hold left to cancel"]),
+                              "Nonce " + str(d["nonce"]), CHAINS[d["chainId"]]]),
+            ("Confirm send", [units(d["value"]) + " ETH",
+                              d["to"][:10] + "..." + d["to"][-10:],
+                              units(d["gasLimit"] * d["maxFeePerGas"]) + " ETH fee"]),
         ]
 
     def sign(self, entropy):

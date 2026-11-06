@@ -33,7 +33,7 @@ export class SatooshiDevice extends EventTarget {
       this.reader = port.readable.getReader();
       this.readTask = this.readLoop();
       const state = await this.request('hello');
-      if (state.name !== 'Satooshi Pro' || !['0.1.0', '0.2.0'].includes(state.version)) throw new Error('Unexpected device or firmware version.');
+      if (state.name !== 'Satooshi Pro' || !['0.1.0', '0.2.0', '0.3.0'].includes(state.version)) throw new Error('Unexpected device or firmware version.');
       this.state = state;
       this.notify('state', state);
       this.heartbeat = setInterval(() => this.request('status').then(s => {

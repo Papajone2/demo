@@ -9,18 +9,32 @@ tamper resistance, verified boot, or protection against a compromised OS.
 
 The main Satooshi web app now includes a Hardware workspace. Its default Preview
 is a home-use presentation with example balances and simulated multi-coin flows.
-Those flows never sign or broadcast transactions. A connected device can display
-a clearly labeled preview message and require a physical dismissal; that is not
-a financial signature. Real ETH mode remains a separate explicit choice and
+Those flows never sign or broadcast transactions. Firmware 0.3 adds structured
+send/swap/receive rehearsals with exact quantities, a full address, fees, summary
+and physical three-second approval. Preview approval returns no signature or
+transaction hash. Real ETH mode remains a separate explicit choice and
 supports only the actual firmware capabilities below. Browser-held keys and
 funds are never migrated to the hardware account.
 
 ### Two-button navigation
 
-Firmware 0.2 shows a left triangle at the lower left and a right triangle at
-the lower right. Tap to navigate; hold right for about one second and release
-to select or approve. Hold left to cancel (or lock from Home).
+Firmware 0.3 has a quiet home screen with an original Satooshi mark and no arrows.
+Action screens show hollow corner triangles that fill while pressed. During
+setup, hold right for about one second and release to select. During transaction
+review, tap right to confirm each detail, left to go back. On the final summary,
+hold right continuously for three seconds until the progress bar fills.
+Releasing early resets the bar; pressing left cancels the hold. Hold left to
+cancel the action (or lock from Home).
 Pressing both physical buttons together does nothing. The joystick is unused.
+
+### Review the new interface before flashing
+
+In the main website open `/device-studio`. Rehearse send, swap and receive
+screens with no device, or connect firmware 0.3 and send the same structured
+preview to the Pi. Custom notes use `show_message` and are always headed
+**From computer**; they cannot authorize a payment. These actions are isolated
+from real wallet balances and broadcasting. The image artifact includes
+`oled-preview.png`, rendered by the same Python renderer as the actual screen.
 
 - Original Zero W/WH **ARMv6, 32-bit Raspberry Pi OS**, not Zero 2 W-only code.
 - Provisional Adafruit **128×64 OLED Bonnet, product 3531**, SSD1306 I2C at `0x3c`.
@@ -69,6 +83,7 @@ without its paper backup.
    - `satooshi-pro-zero-w.img.xz`
    - `SHA256SUMS`
    - `build-manifest.json`
+   - `oled-preview.png` (actual firmware layouts with public sample data)
 4. Verify the checksum (`sha256sum -c SHA256SUMS` on Linux) and flash the
    `.img.xz` using Raspberry Pi Imager's **Use custom** option.
 5. Use an **8 GB or larger microSD card**. Flashing erases that card. Do not
@@ -101,17 +116,18 @@ For remote hosting use HTTPS. An embedded preview may block the serial chooser;
 open its direct URL in a separate tab. Mobile and other browsers are not
 supported for USB setup in this version. GitHub Pages is not automatically enabled.
 
-On the Satooshi workspace the same companion is available at `/start`. The
+On the Satooshi workspace the guided main-wallet setup is available at `/start`.
+It checks compatibility and requests physical pairing, not authenticity attestation. The
 device's `satooshi.io/start` text is the intended product address, **not a claim
 that this repository controls or has published that domain**.
 
 1. Click **Connect device**, then choose the USB serial port.
-2. Start setup and confirm creation using both device buttons.
-3. Write all words on paper, privately; B moves forward, A moves back.
-4. At word 24, press both to begin the backup check.
-5. Select the correct words with A/B and confirm each with both.
+2. Pair by holding right on the device, then start setup and confirm creation.
+3. Write all words on paper, privately; right moves forward, left moves back.
+4. At word 24, hold right and release to begin the backup check.
+5. Select the correct words with left/right; hold right and release to select.
 6. Choose a PIN or explicitly accept no PIN. To enter a PIN, A/B select digits,
-   both selects a digit; choose **Done** after 4–12 digits. Repeat it.
+   hold right and release selects a digit; choose **Done** after 4–12 digits. Repeat it.
 7. Verify the address on the device. Confirm it before using the browser address.
 
 **Never use a seed from a test fixture, screenshot or public example.**
@@ -129,9 +145,8 @@ prepare the transaction, and inspect every page on the device:
 2. The **entire destination address**, never just a shortened prefix.
 3. Maximum network fee.
 4. Maximum total debit and nonce.
-5. Hold the right button for about one second and release to sign.
-   Hold left to cancel. Tap left/right to move through pages.
-   Firmware 0.1 uses both buttons to confirm; 0.2 uses only left/right.
+5. Review the final summary, then hold right for three seconds to sign.
+   Releasing early resets the progress bar. Hold left to cancel.
 
 The device signs the exact reviewed payload, not arbitrary computer text.
 The browser then asks separately before broadcasting **once**. If broadcasting

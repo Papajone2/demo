@@ -11,6 +11,7 @@ import select
 import sys
 import termios
 import tty
+import time
 from pathlib import Path
 
 from .controller import Controller
@@ -32,8 +33,9 @@ def run():
     settings = termios.tcgetattr(sys.stdin)
     tty.setcbreak(sys.stdin.fileno())
     buffer, last = b"", None
+    holding_until = 0
     print("SIMULATOR / not hardware protection. Serial PTY: " + path)
-    print("Keyboard: a = A, b = B, Enter = both, q = quit.")
+    print("Keyboard: a = left, b = right, Enter = setup select, h = physical 3s hold, q = quit.")
     try:
         while True:
             readable, _, _ = select.select([master, sys.stdin], [], [], 0.05)
@@ -41,6 +43,9 @@ def run():
                 char = sys.stdin.read(1)
                 if char == "q":
                     break
+                if char == "h":
+                    controller.hold(False)
+                    holding_until = time.monotonic() + 3.05
                 key = {"a": "a", "b": "b", "\n": "both"}.get(char)
                 if key:
                     controller.button(key)
@@ -51,6 +56,7 @@ def run():
                     os.write(master, (json.dumps(protocol.handle(line)) + "\n").encode())
                 if len(buffer) > MAX_FRAME:
                     buffer = b""
+            controller.hold(time.monotonic() < holding_until)
             controller.tick()
             screen = controller.display()
             if screen != last:

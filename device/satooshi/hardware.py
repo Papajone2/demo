@@ -2,17 +2,16 @@
 
 No joystick pins are initialized. Failure is explicit, not a simulated device.
 """
-import textwrap
 import time
+from .screen import Screen
 
 
 class Bonnet:
     def __init__(self):
         import RPi.GPIO as GPIO
         import smbus
-        from PIL import Image, ImageDraw, ImageFont
-        self.GPIO, self.Image, self.ImageDraw = GPIO, Image, ImageDraw
-        self.font = ImageFont.load_default()
+        self.GPIO = GPIO
+        self.screen = Screen()
         GPIO.setmode(GPIO.BCM)
         for pin in (5, 6):
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -27,6 +26,7 @@ class Bonnet:
         self.pressed = set()
         self.press_started = None
         self.last_screen = None
+        self.suppress_release = False
 
     def command(self, value):
         self.bus.write_byte_data(self.address, 0, value)
@@ -49,41 +49,20 @@ class Bonnet:
             held = now - self.press_started if self.press_started is not None else 0
             # Left/right only: a deliberate right hold selects/confirms.
             # Simultaneous presses are ignored so an accidental chord cannot sign.
-            key = None if len(self.pressed) == 2 else (
+            key = None if self.suppress_release or len(self.pressed) == 2 else (
                 "both" if "b" in self.pressed and held >= 0.9 else
                 "cancel" if "a" in self.pressed and held >= 0.9 else next(iter(self.pressed)))
             self.pressed = set()
             self.press_started = None
+            self.suppress_release = False
             return key
         return None
 
-    def render(self, screen):
-        if screen == self.last_screen:
+    def render(self, screen, **options):
+        image = self.screen.render(screen, pressed=self.stable, **options)
+        frame = image.tobytes()
+        if frame == self.last_screen:
             return
-        title, body, footer = screen
-        image = self.Image.new("1", (128, 64))
-        draw = self.ImageDraw.Draw(image)
-        if title == "SATOOSHI START":
-            # Replace this neutral mark with the user's logo when provided.
-            draw.rectangle((56, 6, 71, 21), fill=1)
-            for y, line in ((29, "Head over to"), (41, "satooshi.io/start")):
-                bounds = draw.textbbox((0, 0), line, font=self.font)
-                draw.text(((128 - (bounds[2] - bounds[0])) // 2, y), line,
-                          font=self.font, fill=1)
-        else:
-            draw.text((1, 0), title[:21], font=self.font, fill=1)
-            lines = []
-            for line in body:
-                lines.extend(textwrap.wrap(str(line), width=21, break_long_words=True,
-                                           break_on_hyphens=False) or [""])
-            if len(lines) > 4:
-                # Never truncate a transaction or recovery word.
-                raise ValueError("Device screen overflow; action cannot be safely reviewed")
-            for i, line in enumerate(lines):
-                draw.text((1, 12 + i * 10), line, font=self.font, fill=1)
-        # Dedicated footer: no crowded A/B instructions, only physical directions.
-        draw.polygon([(3, 59), (8, 55), (8, 63)], fill=1)
-        draw.polygon([(124, 59), (119, 55), (119, 63)], fill=1)
         self.command(0x21)
         self.command(0)
         self.command(127)
@@ -97,7 +76,7 @@ class Bonnet:
                                 for bit in range(8)))
         for start in range(0, len(data), 32):
             self.bus.write_i2c_block_data(self.address, 0x40, data[start:start + 32])
-        self.last_screen = screen
+        self.last_screen = frame
 
     def close(self):
         self.command(0xae)

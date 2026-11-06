@@ -59,11 +59,26 @@ def run():
                     controller.error = "Action failed safely"
                     controller.changed()
                     print("Device action failed; wallet locked. No signing retry.", file=sys.stderr)
+            try:
+                controller.hold(right=hardware.stable[1], left=hardware.stable[0])
+                if controller.phase == "success":
+                    # Consuming a completed hold must not produce a second event
+                    # when released (or lock the wallet three seconds later).
+                    hardware.suppress_release = True
+            except Exception:
+                controller.lock()
+                controller.error = "Approval failed"
+                controller.changed()
             controller.tick()
             screen = controller.display()
             if controller.error:
-                screen = (screen[0], [controller.error] + screen[1][:3], screen[2])
-            hardware.render(screen)
+                screen = ("Action stopped", [controller.error], "")
+            reviewing = controller.phase in ("review", "preview_review")
+            hardware.render(screen, phase=controller.phase, step=controller.step,
+                            steps=len(controller.review.pages()) if reviewing else 0,
+                            progress=controller.hold_progress,
+                            review_confirmed=reviewing and controller.step == len(controller.review.pages()) - 1,
+                            simulated=controller.phase == "preview_review")
             if outputs:
                 try:
                     while outputs:

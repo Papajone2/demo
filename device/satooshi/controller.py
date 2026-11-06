@@ -5,6 +5,8 @@ import time
 import textwrap
 
 from .evm import Transfer, WORDLIST, address
+from .rehearsal import Rehearsal
+from .screen import Screen
 from .vault import WrongPIN
 
 
@@ -22,16 +24,22 @@ class Controller:
         self.visited = set()
         self.quiz = []
         self.message = ""
+        self.hold_started = None
+        self.hold_progress = 0
+        self.hold_armed = False
+        self.success_until = 0
+        self.success_preview = False
 
     def status(self):
         meta = self.vault.metadata() if self.vault.exists else {}
-        return dict(name="Satooshi Pro", version="0.2.0", configured=self.vault.exists,
+        return dict(name="Satooshi Pro", version="0.3.0", configured=self.vault.exists,
                     locked=self.entropy is None, phase=self.phase, step=self.step,
                     steps=24 if self.phase == "backup" else len(self.review.pages()) if self.review else 0,
                     attemptsRemaining=max(0, 5 - meta.get("failed", 0)),
                     pinEnabled=meta.get("pin", False), error=self.error,
                     capabilities=["ethereum-native-eip1559", "sepolia-native-eip1559"],
-                    controls="left-right-hold", prototype=True)
+                    previewCapabilities=["send", "swap", "receive", "message"],
+                    controls="left-right-hold", confirmHoldMs=3000, prototype=True)
 
     def changed(self):
         self.emit({"event": "state", "data": self.status()})
@@ -47,6 +55,7 @@ class Controller:
         if not self.vault.exists:
             self.entropy = None
         self.phase, self.step, self.review = "home", 0, None
+        self.hold_started, self.hold_progress, self.hold_armed = None, 0, False
         self.pin = self.pin_first = ""
         self.changed()
 
@@ -72,6 +81,10 @@ class Controller:
             if params:
                 raise ValueError("Setup takes no seed or PIN from the computer")
             self.pending, self.phase = request_id, "setup_confirm"
+        elif method == "pair":
+            if params:
+                raise ValueError("Pairing takes no computer-supplied data")
+            self.pending, self.phase = request_id, "pair"
         elif method == "unlock":
             if not self.vault.exists:
                 raise ValueError("Set up the device first")
@@ -84,9 +97,10 @@ class Controller:
             self.pending, self.phase = request_id, "address"
         elif method == "review_transfer":
             self.require_unlock()
-            self.review = Transfer(params)
-            self.pending, self.phase, self.step = request_id, "review", 0
-            self.visited = {0}
+            self.start_review(Transfer(params), request_id, "review")
+        elif method == "preview_review":
+            # Explicitly non-signing. May be used before setup; never touches vault.
+            self.start_review(Rehearsal(params), request_id, "preview_review")
         elif method == "reset":
             self.pending, self.phase, self.step = request_id, "reset", 0
         elif method == "show_message":
@@ -107,6 +121,20 @@ class Controller:
     def require_unlock(self):
         if self.entropy is None or not self.vault.exists:
             raise ValueError("Unlock the device first")
+
+    def start_review(self, review, request_id, phase):
+        # Check every page's actual pixel layout BEFORE accepting the action.
+        # Display overflow is a rejected request, never a crash halfway through.
+        renderer = Screen()
+        pages = review.pages()
+        for i, page in enumerate(pages):
+            renderer.render((*page, ""), phase=phase, step=i, steps=len(pages),
+                            review_confirmed=i == len(pages) - 1,
+                            simulated=phase == "preview_review")
+        self.review = review
+        self.pending, self.phase, self.step = request_id, phase, 0
+        self.visited = set()
+        self.hold_started, self.hold_progress, self.hold_armed = None, 0, False
 
     def _begin_pin(self, mode):
         self.phase, self.pin_mode, self.pin, self.digit = "pin", mode, "", 0
@@ -153,7 +181,13 @@ class Controller:
         self.last_action = self.clock()
         self.error = ""
         phase = self.phase
-        if phase == "setup_confirm":
+        if phase == "pair":
+            if key == "a":
+                self.cancel()
+            elif key == "both":
+                self.result({"paired": True, "firmware": "0.3.0"})
+                self.phase = "home"
+        elif phase == "setup_confirm":
             if key == "a":
                 self.cancel()
             elif key == "both":
@@ -229,19 +263,15 @@ class Controller:
             elif key == "both":
                 self.result({"address": address(self.entropy), "path": "m/44'/60'/0'/0/0"})
                 self.phase = "home"
-        elif phase == "review":
+        elif phase in ("review", "preview_review"):
             last = len(self.review.pages()) - 1
             if key == "a":
                 self.step = max(0, self.step - 1)
-            elif key == "b":
-                if self.step != last:
-                    self.step += 1
-                    self.visited.add(self.step)
-            elif self.step == last and len(self.visited) == last + 1:
-                # Snapshot is owned by the device; host cannot edit a pending review.
-                signed = self.review.sign(self.entropy)
-                self.result(signed)
-                self.review, self.phase, self.step = None, "home", 0
+            elif key in ("b", "both") and self.step < last:
+                self.visited.add(self.step)
+                self.step += 1
+            # Only continuous local GPIO state in hold() can approve the last page.
+            self.hold_started, self.hold_progress, self.hold_armed = None, 0, False
         elif phase == "reset":
             if key == "a":
                 self.cancel()
@@ -260,6 +290,34 @@ class Controller:
             self.lock()
         self.changed()
 
+    def hold(self, right, left=False):
+        """Only the local GPIO runtime supplies this, never the USB protocol."""
+        if not right or left:
+            self.hold_started, self.hold_progress = None, 0
+            if left:
+                self.hold_armed = False
+            if not right and not left:
+                self.hold_armed = True
+            return
+        if self.phase not in ("review", "preview_review") or not self.review:
+            return
+        last = len(self.review.pages()) - 1
+        if self.step != last or not all(i in self.visited for i in range(last)) or not self.hold_armed:
+            return
+        if self.hold_started is None:
+            self.hold_started = self.clock()
+        self.hold_progress = min(1, (self.clock() - self.hold_started) / 3)
+        self.last_action = self.clock()
+        if self.hold_progress < 1:
+            return
+        preview = self.phase == "preview_review"
+        result = self.review.approve() if preview else self.review.sign(self.entropy)
+        self.result(result)
+        self.review, self.phase, self.step = None, "success", 0
+        self.success_preview, self.success_until = preview, self.clock() + 3
+        self.hold_started, self.hold_progress, self.hold_armed = None, 0, False
+        self.changed()
+
     def _words(self):
         return WORDLIST.to_mnemonic(self.entropy).split()
 
@@ -272,7 +330,11 @@ class Controller:
 
     def tick(self):
         now = self.clock()
-        if self.entropy is not None and (now - self.last_action > 300 or now - self.last_host > 45):
+        if self.phase == "success" and now >= self.success_until:
+            self.phase = "home"
+            self.changed()
+        if (self.entropy is not None or self.pending is not None) and (
+                now - self.last_action > 300 or now - self.last_host > 45):
             self.lock()
 
     def display(self):
@@ -290,14 +352,19 @@ class Controller:
             if self.pin_mode == "unlock":
                 lines += ["! %d attempts left" % self.status()["attemptsRemaining"]]
             return title, lines, "Hold right to select"
-        if self.phase == "review":
+        if self.phase in ("review", "preview_review"):
             title, lines = self.review.pages()[self.step]
-            return title, lines, "Hold right to sign"
+            return title, lines, "Hold right 3s"
+        if self.phase == "success":
+            return ("Approval complete" if self.success_preview else "Transaction signed",
+                    ["No funds moved" if self.success_preview else "Check your wallet"], "")
         if self.phase == "address":
             value = address(self.entropy)
             return "Verify ETH address", [value[:21], value[21:]], "Hold right to confirm"
         if self.phase == "setup_confirm":
             return "Create a wallet?", ["Keys stay here", "Back up all 24 words"], "Hold right to create"
+        if self.phase == "pair":
+            return "Connect wallet?", ["Satooshi web wallet", "Hold right to pair", "Left to decline"], ""
         if self.phase == "pin_choice":
             return "Protect your wallet", ["> Set a PIN" if self.choice == 0 else "> No PIN"], "Hold right to select"
         if self.phase == "no_pin_confirm":
@@ -308,7 +375,7 @@ class Controller:
             return "! Reset wallet?" if self.step == 0 else "! FINAL CONFIRMATION", [
                 "Deletes device wallet", "Have your paper backup"], "Hold right to reset"
         if self.phase == "message":
-            return "COMPUTER MESSAGE", [self.message[i:i + 21] for i in range(0, len(self.message), 21)], "Hold right to close"
+            return "From computer", [self.message[i:i + 24] for i in range(0, len(self.message), 24)], "Hold right to close"
         if not self.vault.exists and self.entropy is None:
             return "SATOOSHI START", ["Head over to", "satooshi.io/start"], ""
         return "SATOOSHI PRO", ["Unlocked" if self.entropy is not None else "Locked" if self.vault.exists else "Welcome",

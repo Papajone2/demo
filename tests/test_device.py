@@ -195,9 +195,18 @@ class DeviceTests(unittest.TestCase):
         self.assertFalse(any(e["event"] == "result" for e in self.events))
         for _ in range(4):
             self.device.button("b")
+        # Old confirm events and short taps cannot approve the final page.
         self.device.button("both")
+        self.assertFalse(any(e["event"] == "result" for e in self.events))
+        self.device.hold(False)
+        self.device.hold(True)
+        self.now += 3
+        self.device.hold(True)
         result = next(e for e in self.events if e["event"] == "result")
         self.assertEqual(result["data"]["result"]["rawTransaction"], RAW)
+        self.assertEqual(self.device.phase, "success")
+        self.now += 3
+        self.device.tick()
         self.assertEqual(self.device.phase, "home")
 
     def test_no_remote_buttons_seed_or_arbitrary_signing(self):

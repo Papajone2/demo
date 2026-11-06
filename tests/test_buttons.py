@@ -11,6 +11,7 @@ class ButtonTests(unittest.TestCase):
         self.bonnet.since = 0
         self.bonnet.pressed = set()
         self.bonnet.press_started = None
+        self.bonnet.suppress_release = False
         self.now = 10
         self.raw = (False, False)
         class GPIO:
