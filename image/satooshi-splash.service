@@ -1,0 +1,26 @@
+[Unit]
+Description=Satooshi early OLED logo (no keys or wallet access)
+DefaultDependencies=no
+Wants=local-fs.target systemd-modules-load.service
+After=local-fs.target systemd-modules-load.service
+Before=sysinit.target satooshi.service shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+User=satooshi
+Group=satooshi
+SupplementaryGroups=i2c
+Environment=PYTHONPATH=/opt/satooshi/device
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 -m satooshi.splash
+TimeoutStartSec=8
+RemainAfterExit=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=sysinit.target

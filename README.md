@@ -192,3 +192,26 @@ picker. Use the physical USB device for that final test.
   a different hardware adapter; do not assume a similar-looking board works.
 
 See [USB protocol](docs/protocol.md) and [physical test checklist](docs/hardware-test.md).
+
+## Image identity and startup
+
+Use **Build Pi Zero W image**, not **Device tests**: their run numbers are separate.
+New image artifacts are named `satooshi-firmware-0.3.0-image-N`. Each compressed
+image filename includes its firmware version, build number and source commit.
+Extract the ZIP into a fresh folder. Run `unxz --keep --verbose` followed by that
+exact `.img.xz` filename, then flash its matching `.img`. Do not reuse an older
+`satooshi-pro-zero-w.img` left in Downloads. Etcher must validate the flash.
+Flashing erases the device wallet; keep the recovery backup or use a spare card.
+
+The FAT boot partition contains `satooshi-build.json`, readable on your computer.
+Its commit should match the downloaded artifact's `build-manifest.json`.
+The website also shows the version and source commit reported over USB.
+These are diagnostics, not cryptographic firmware attestation.
+
+An early, keyless OLED service shows the supplied Satooshi wordmark and
+`satooshi.io/start` before loading the wallet's cryptography. USB gadget setup
+also starts during early system initialization, independently of the splash.
+Unused network waits and offline maintenance timers are disabled. Target-Python
+bytecode is precompiled. Secure randomness, vault protections, filesystem checks
+and physical transaction confirmation remain enabled. Boot times have not been
+measured on physical hardware; the logo does not mean the signing service is ready.

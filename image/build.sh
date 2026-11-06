@@ -3,6 +3,8 @@
 set -Eeuo pipefail
 [[ "${EUID}" -eq 0 ]] || { echo 'Run with sudo on an Ubuntu build runner.' >&2; exit 1; }
 SOURCE="$(cd "$(dirname "$0")/.." && pwd)"
+COMMIT="$(git -C "$SOURCE" rev-parse HEAD)"
+IMAGE_NAME="satooshi-pro-0.3.0-build-${GITHUB_RUN_NUMBER:-local}-${COMMIT:0:8}.img"
 BUILD="$SOURCE/build"
 ROOT="$BUILD/root"
 IMAGE="$BUILD/satooshi-pro-zero-w.img"
@@ -52,8 +54,10 @@ POLICY
 chmod 755 "$ROOT/usr/sbin/policy-rc.d"
 mkdir -p "$ROOT/opt/satooshi/device" "$ROOT/opt/satooshi/image"
 cp -a "$SOURCE/device/satooshi" "$ROOT/opt/satooshi/device/"
+printf 'VERSION = "0.3.0"\nBUILD_COMMIT = "%s"\n' "$COMMIT" \
+  > "$ROOT/opt/satooshi/device/satooshi/build_info.py"
 find "$ROOT/opt/satooshi" -type d -name __pycache__ -prune -exec rm -rf {} +
-cp "$SOURCE/image/"{usb-gadget.sh,satooshi.service,satooshi-usb.service} "$ROOT/opt/satooshi/image/"
+cp "$SOURCE/image/"{usb-gadget.sh,satooshi.service,satooshi-usb.service,satooshi-splash.service} "$ROOT/opt/satooshi/image/"
 cp "$SOURCE/requirements-core.txt" "$ROOT/opt/satooshi/"
 chmod 755 "$ROOT/opt/satooshi/image/usb-gadget.sh"
 
@@ -76,7 +80,7 @@ id satooshi >/dev/null 2>&1 || useradd --system --home-dir /var/lib/satooshi \
   --shell /usr/sbin/nologin --groups gpio,i2c,dialout satooshi
 install -d -o satooshi -g satooshi -m 700 /var/lib/satooshi
 cp /opt/satooshi/image/satooshi*.service /etc/systemd/system/
-systemctl enable satooshi-usb.service satooshi.service
+systemctl enable satooshi-splash.service satooshi-usb.service satooshi.service
 systemctl disable ssh.service ssh.socket avahi-daemon.service bluetooth.service \
   serial-getty@ttyGS0.service getty@tty1.service 2>/dev/null || true
 passwd -l root
@@ -89,7 +93,10 @@ chroot "$ROOT" /usr/bin/qemu-arm-static /bin/bash -eux /tmp/satooshi-provision.s
 # Fail before packaging if provisioning did not install the boot services/user.
 chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/id satooshi
 chroot "$ROOT" /usr/bin/qemu-arm-static /bin/systemctl is-enabled \
-  satooshi-usb.service satooshi.service
+  satooshi-splash.service satooshi-usb.service satooshi.service
+chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/systemd-analyze verify \
+  /etc/systemd/system/satooshi-splash.service \
+  /etc/systemd/system/satooshi-usb.service /etc/systemd/system/satooshi.service
 [[ -f "$ROOT/opt/satooshi/vendor/ecdsa/__init__.py" ]]
 
 cat >> "$ROOT/boot/firmware/config.txt" <<'CONFIG'
@@ -106,7 +113,15 @@ sed -i -E 's/(^| )console=serial0,[0-9]+//g; s/(^| )console=ttyAMA0,[0-9]+//g' "
 mkdir -p "$ROOT/etc/modprobe.d"
 printf 'blacklist brcmfmac\nblacklist bluetooth\nblacklist btbcm\nblacklist hci_uart\n' > "$ROOT/etc/modprobe.d/satooshi-offline.conf"
 chroot "$ROOT" /usr/bin/qemu-arm-static /bin/systemctl mask userconfig.service userconfig-pi.service \
-  ssh.service ssh.socket NetworkManager.service wpa_supplicant.service bluetooth.service
+  ssh.service ssh.socket NetworkManager.service NetworkManager-wait-online.service \
+  systemd-networkd-wait-online.service wpa_supplicant.service bluetooth.service \
+  ModemManager.service hciuart.service avahi-daemon.service
+# Keep OS, entropy, udev and filesystem safety services; remove only unused
+# background maintenance from this offline appliance's critical boot workload.
+chroot "$ROOT" /usr/bin/qemu-arm-static /bin/systemctl disable \
+  apt-daily.timer apt-daily-upgrade.timer man-db.timer 2>/dev/null || true
+printf 'KERNEL=="ttyGS0", GROUP="dialout", MODE="0660"\n' \
+  > "$ROOT/etc/udev/rules.d/99-satooshi-serial.rules"
 rm -f "$ROOT/boot/firmware/ssh" "$ROOT/boot/firmware/ssh.txt" \
   "$ROOT/boot/firmware/userconf" "$ROOT/boot/firmware/userconf.txt"
 rm -f "$ROOT/etc/ssh/"ssh_host_* "$ROOT/usr/sbin/policy-rc.d"
@@ -121,17 +136,36 @@ chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/env \
 chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/env \
   PYTHONPATH=/opt/satooshi/vendor:/opt/satooshi/device PYTHONDONTWRITEBYTECODE=1 \
   /usr/bin/python3 -c 'from satooshi.screen import Screen; from satooshi.controller import Controller; assert Screen().render(("SATOOSHI START", [], ""), phase="home").size == (128,64)'
+# Validate what is INSTALLED inside the image, not just the checkout or manifest.
+chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/env \
+  PYTHONPATH=/opt/satooshi/vendor:/opt/satooshi/device EXPECTED_COMMIT="$COMMIT" \
+  PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -c '
+import os
+import satooshi.controller as module
+from satooshi.controller import Controller
+from satooshi.vault import Vault
+from satooshi.build_info import BUILD_COMMIT
+assert module.__file__.startswith("/opt/satooshi/device/")
+status = Controller(Vault("/var/lib/satooshi"), lambda event: None).status()
+assert status["version"] == "0.3.0"
+assert status["buildCommit"] == os.environ["EXPECTED_COMMIT"] == BUILD_COMMIT
+assert status["previewCapabilities"] == ["send", "swap", "receive", "message"]
+print("Installed image firmware verified:", status["version"], BUILD_COMMIT)
+'
+# Compile under the target interpreter, not the runner's Python version.
+chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/python3 -m compileall \
+  -q /opt/satooshi/device /opt/satooshi/vendor
 # This test vector is public, never saved as a wallet.
 [[ -z "$(find "$ROOT/var/lib/satooshi" -mindepth 1 -print -quit)" ]]
-COMMIT="$(git -C "$SOURCE" rev-parse HEAD)"
-printf '{"product":"Satooshi Pro","firmware":"0.3.0","prototype":true,"target":"Pi Zero W/WH ARMv6","commit":"%s","base_sha256":"%s"}\n' \
-  "$COMMIT" "$BASE_SHA" > "$SOURCE/dist/build-manifest.json"
+printf '{"product":"Satooshi Pro","firmware":"0.3.0","prototype":true,"target":"Pi Zero W/WH ARMv6","commit":"%s","base_sha256":"%s","image":"%s.xz"}\n' \
+  "$COMMIT" "$BASE_SHA" "$IMAGE_NAME" > "$SOURCE/dist/build-manifest.json"
 cp "$SOURCE/dist/build-manifest.json" "$ROOT/opt/satooshi/"
+cp "$SOURCE/dist/build-manifest.json" "$ROOT/boot/firmware/satooshi-build.json"
 sync
 cleanup
 LOOP=""
 trap - EXIT
 xz -T2 -3 "$IMAGE"
-mv "$IMAGE.xz" "$SOURCE/dist/"
+mv "$IMAGE.xz" "$SOURCE/dist/$IMAGE_NAME.xz"
 (cd "$SOURCE/dist"; sha256sum *.img.xz > SHA256SUMS)
-echo "Built dist/satooshi-pro-zero-w.img.xz. Physical boot testing is still required."
+echo "Built dist/$IMAGE_NAME.xz. Physical boot timing is still required."

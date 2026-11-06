@@ -8,6 +8,7 @@ from .evm import Transfer, WORDLIST, address
 from .rehearsal import Rehearsal
 from .screen import Screen
 from .vault import WrongPIN
+from .build_info import VERSION, BUILD_COMMIT
 
 
 class Controller:
@@ -32,7 +33,7 @@ class Controller:
 
     def status(self):
         meta = self.vault.metadata() if self.vault.exists else {}
-        return dict(name="Satooshi Pro", version="0.3.0", configured=self.vault.exists,
+        return dict(name="Satooshi Pro", version=VERSION, buildCommit=BUILD_COMMIT, configured=self.vault.exists,
                     locked=self.entropy is None, phase=self.phase, step=self.step,
                     steps=24 if self.phase == "backup" else len(self.review.pages()) if self.review else 0,
                     attemptsRemaining=max(0, 5 - meta.get("failed", 0)),

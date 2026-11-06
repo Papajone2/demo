@@ -5,10 +5,7 @@ import os
 import sys
 import time
 
-from .controller import Controller
 from .hardware import Bonnet
-from .protocol import MAX_FRAME, Protocol
-from .vault import Vault
 
 
 def run():
@@ -20,6 +17,11 @@ def run():
     os.umask(0o077)
     hardware = Bonnet()
     hardware.render(("SATOOSHI START", ["Head over to", "satooshi.io/start"], ""))
+    # Show the public logo before importing signing, KDF and vault libraries.
+    # Secure entropy initialization remains intact; it is never bypassed for speed.
+    from .controller import Controller
+    from .protocol import MAX_FRAME, Protocol
+    from .vault import Vault
     port = serial.Serial(args.port, baudrate=115200, timeout=0, write_timeout=2)
     outputs = []
 

@@ -29,11 +29,11 @@ jobs:
           sudo update-binfmts --enable qemu-arm
           test -x /usr/bin/qemu-arm-static
       - name: Build original Zero W-compatible image
-        run: sudo bash image/build.sh
+        run: sudo env GITHUB_RUN_NUMBER="$GITHUB_RUN_NUMBER" bash image/build.sh
       - name: Upload compressed image and checksum
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: satooshi-pro-zero-w-${{ github.run_number }}
+          name: satooshi-firmware-0.3.0-image-${{ github.run_number }}
           path: dist/
           if-no-files-found: error
           retention-days: 14

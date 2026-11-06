@@ -1,5 +1,6 @@
 """Pixel-measured monochrome OLED rendering, also used for offline image tests."""
 from PIL import Image, ImageDraw, ImageFont
+from pathlib import Path
 
 
 class Screen:
@@ -12,6 +13,7 @@ class Screen:
         self.small = ImageFont.truetype(font, 8)
         self.body = ImageFont.truetype(font, 9)
         self.large = ImageFont.truetype(font, 12)
+        self.wordmark = Image.open(Path(__file__).with_name("assets") / "wordmark.png").convert("1")
 
     @staticmethod
     def logo(draw, x, y, size=16):
@@ -46,8 +48,7 @@ class Screen:
         image = Image.new("1", (128, 64))
         draw = ImageDraw.Draw(image)
         if phase == "home":
-            self.logo(draw, 56, 3, 15)
-            self.center(draw, "SATOOSHI", 23, self.body)
+            image.paste(self.wordmark, ((128 - self.wordmark.width) // 2, 8))
             if title == "SATOOSHI START":
                 self.center(draw, "Head over to", 39, self.small)
                 self.center(draw, "satooshi.io/start", 51, self.small)
