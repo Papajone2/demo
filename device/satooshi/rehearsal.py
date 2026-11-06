@@ -21,7 +21,7 @@ def quantity(value, name, positive=True):
 
 
 def coin(value, name):
-    if not isinstance(value, str) or not re.fullmatch(r"[A-Z0-9]{1,10}", value):
+    if not isinstance(value, str) or not re.fullmatch(r"[A-Z0-9][A-Z0-9._-]{0,11}", value):
         raise ValueError(name + " must be an uppercase symbol")
     return value
 
@@ -46,10 +46,10 @@ class Rehearsal:
         quantity(payload["fee"], "Fee", positive=False)
         coin(payload["symbol"], "Symbol")
         coin(payload["feeSymbol"], "Fee symbol")
-        text(payload["address"], "Address", 96)
-        if not re.fullmatch(r"[A-Za-z0-9:_-]+", payload["address"]):
+        text(payload["address"], "Address", 196)
+        if not re.fullmatch(r"[A-Za-z0-9:_.-]+", payload["address"]):
             raise ValueError("Use a blockchain address, not a message")
-        text(payload["network"], "Network", 18)
+        text(payload["network"], "Network", 48)
         if operation == "swap":
             quantity(payload["receiveAmount"], "Receive amount")
             coin(payload["receiveSymbol"], "Receive symbol")
@@ -64,15 +64,19 @@ class Rehearsal:
         action = {"send": "Send", "swap": "Swap", "receive": "Receive"}[self.operation]
         pages = [
             (action + " amount", [d["amount"] + " " + d["symbol"], d["network"]]),
-            ("Check address", [d["address"][i:i + 24] for i in range(0, len(d["address"]), 24)]),
-            ("Network fee", [d["fee"] + " " + d["feeSymbol"]]),
         ]
+        # Never abbreviate the address during review. Longer chains get pages.
+        address_lines = [d["address"][i:i + 20] for i in range(0, len(d["address"]), 20)]
+        for start in range(0, len(address_lines), 3):
+            pages.append(("Check address", address_lines[start:start + 3]))
+        pages.append(("Network fee", [d["fee"] + " " + d["feeSymbol"]]))
         if self.operation == "swap":
-            pages.append(("Estimated receive", [d["receiveAmount"] + " " + d["receiveSymbol"],
+            pages.append(("You receive", [d["receiveAmount"] + " " + d["receiveSymbol"],
                                                 "Estimate only"]))
-        short = d["address"] if len(d["address"]) <= 24 else d["address"][:10] + "..." + d["address"][-10:]
-        summary = [d["amount"] + " " + d["symbol"], short,
-                   d["fee"] + " " + d["feeSymbol"] + " fee"]
+        # Exact values are reviewed separately first; retain a concise final
+        # summary without truncating either amount or the network fee.
+        short = d["address"] if len(d["address"]) <= 20 else d["address"][:8] + "..." + d["address"][-8:]
+        summary = [d["amount"] + " " + d["symbol"], short, d["fee"] + " " + d["feeSymbol"]]
         if self.operation == "swap":
             summary.append(d["receiveAmount"] + " " + d["receiveSymbol"])
         pages.append(("Confirm " + action.lower(), summary))

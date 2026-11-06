@@ -5,6 +5,7 @@ import os
 import tempfile
 import textwrap
 import unittest
+from unittest.mock import patch
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
@@ -105,6 +106,91 @@ class DeviceTests(unittest.TestCase):
         while self.device.digit != 10:
             self.device.button("b")
         self.device.button("both")
+
+    def test_browser_payment_requires_local_review_and_never_signs(self):
+        from satooshi.rehearsal import Rehearsal
+        self.configured()
+        details = dict(operation="send", amount="10", symbol="TRX",
+                       address="T111111111111111111111111111111111",
+                       fee="1.2", feeSymbol="TRX", network="tron-mainnet")
+        self.device.request("approve_browser_transfer", details, "approval")
+        self.assertEqual(self.device.phase, "browser_review")
+        last = len(self.device.review.pages()) - 1
+        self.device.step = last
+        self.device.button("b")
+        self.assertEqual([x for x in self.events if x["event"] == "result"], [])
+        self.device.step = 0
+        for _ in range(last):
+            self.device.button("b")
+        with patch.object(Rehearsal, "approve", side_effect=AssertionError("simulated approval called")):
+            self.device.button("b")
+        result = [x["data"]["result"] for x in self.events if x["event"] == "result"]
+        self.assertEqual(result, [{"approved": True, "signing": "browser", "operation": "send"}])
+        self.assertTrue(self.vault.exists)
+
+    def test_restore_valid_device_words_and_one_digit_pin(self):
+        self.device.request("setup", {}, "setup")
+        self.device.button("a")
+        self.assertEqual(self.device.phase, "recover")
+        words = WORDLIST.to_mnemonic(ENTROPY).split()
+        for word in words:
+            self.device.digit = WORDLIST.wordlist.index(word)
+            self.device.button("both")
+        self.assertEqual(self.device.phase, "pin_choice")
+        self.assertEqual(self.device.entropy, ENTROPY)
+        self.device.button("b")
+        self.device.digit = 7
+        self.device.button("both")
+        self.device.digit = 10
+        self.device.button("both")
+        self.device.digit = 7
+        self.device.button("both")
+        self.device.digit = 10
+        self.device.button("both")
+        self.assertTrue(self.vault.exists)
+        self.assertEqual(self.vault.unlock("7"), ENTROPY)
+
+    def test_open_wallet_releases_only_after_local_click(self):
+        self.configured()
+        self.device.request("open_wallet", {}, "open")
+        self.assertEqual(self.device.phase, "wallet_open")
+        self.assertFalse(any(x["event"] == "result" for x in self.events))
+        self.device.button("b")
+        results = [x["data"]["result"] for x in self.events if x["event"] == "result"]
+        self.assertEqual(results, [{"entropy": ENTROPY.hex(), "address": ADDRESS}])
+
+    def test_cancel_open_wallet_does_not_release_seed(self):
+        self.configured()
+        self.device.request("open_wallet", {}, "cancel-open")
+        self.device.button("a")
+        self.assertNotIn("entropy", repr(self.events))
+
+    def test_release_requires_every_payment_page_and_never_fakes_signature(self):
+        self.configured()
+        details = dict(operation="swap", amount="10", symbol="TRX",
+                       address="T111111111111111111111111111111111",
+                       fee="1.2", feeSymbol="TRX", network="tron-mainnet",
+                       receiveAmount="1.2", receiveSymbol="SUI")
+        self.device.request("approve_and_release", details, "release")
+        last = len(self.device.review.pages()) - 1
+        self.device.step = last
+        self.device.button("b")
+        self.assertFalse(any(x["event"] == "result" for x in self.events))
+        self.device.step = 0
+        for _ in range(last + 1):
+            self.device.button("b")
+        result = [x["data"]["result"] for x in self.events if x["event"] == "result"]
+        self.assertEqual(result, [{"approved": True, "signing": "browser", "operation": "swap",
+                                   "entropy": ENTROPY.hex(), "address": ADDRESS}])
+        self.assertNotIn("signature", result[0])
+        self.assertNotIn("transactionHash", result[0])
+
+    def test_release_and_open_require_unlock(self):
+        self.configured()
+        self.device.entropy = None
+        for method in ("open_wallet", "approve_and_release"):
+            with self.assertRaises(ValueError):
+                self.device.request(method, {}, "locked")
 
     def test_vault_is_encrypted_and_permissions_private(self):
         self.vault.create(ENTROPY, "1234")

@@ -7,22 +7,42 @@ tamper resistance, verified boot, or protection against a compromised OS.
 
 ## What is implemented
 
-The main Satooshi web app now includes a Hardware workspace. Its default Preview
-is a home-use presentation with example balances and simulated multi-coin flows.
-Those flows never sign or broadcast transactions. Firmware 0.3 adds structured
-send/swap/receive rehearsals with exact quantities, a full address, fees, summary
-and physical three-second approval. Preview approval returns no signature or
-transaction hash. Real ETH mode remains a separate explicit choice and
-supports only the actual firmware capabilities below. Browser-held keys and
-funds are never migrated to the hardware account.
+The main web app's `/dashboard` uses the **Pi-generated recovery phrase** for
+addresses and real browser-side signing. Opening the wallet and each payment
+require physical approval before seed entropy is released over USB. Only public
+account metadata is deliberately persisted in the browser. Signing material is
+kept in a separate temporary runtime session and cleared after success/failure.
+JavaScript erasure is best effort: a compromised computer can copy the seed,
+so device-only spending is not a security guarantee. This is not offline
+hardware signing. Web setup and Terms require acknowledgment. The device shows
+ordinary Open/Review/Confirm prompts, not false offline-signature claims.
+Root browser-wallet routes, vault, addresses and funds remain separate and
+unchanged. No migration is automatic. Transfer coverage is the existing browser
+transaction engine's actual support, not every priced asset.
+
+`approve_browser_transfer` requires an unlocked, configured device and local
+review of amount, full address, fee and final summary. It returns an approval,
+not a signature or a fabricated transaction hash. The browser signs after this
+approval. The older `preview_review` remains simulation-only; genuine native
+ETH signing remains a separate firmware capability.
 
 ### Two-button navigation
 
-Firmware 0.3 has a quiet home screen with an original Satooshi mark and no arrows.
-Action screens show hollow corner triangles that fill while pressed. During
-setup, hold right for about one second and release to select. During transaction
-review, tap right to confirm each detail, left to go back. On the final summary,
-hold right continuously for three seconds until the progress bar fills.
+The earliest splash is only the supplied wordmark. A ready fresh device shows
+the setup address; after connecting it remembers to use a logo-only home.
+Pairing is automatic after the browser USB chooser, not a firmware-attestation
+claim. Ordinary choices have labeled left/right buttons and confirm on a click.
+Recovery-word navigation uses corner arrows. Word checks, restoration words and
+PIN digits use a two-second right hold followed by release. The progress bar
+stays full while held and its text inverts against the fill.
+
+The PIN is optional and can contain 1–12 digits; short PINs are substantially
+weaker. Move across 0–9, Done and Delete with taps, and hold right to select.
+Device restore accepts 24 valid BIP39 words entered on the device, never via USB.
+Browser-backed payment review uses clicks through amount/address/fee/summary;
+the final click approves it for the browser to sign.
+
+Legacy native ETH signing and simulated previews still use a final three-second hold.
 Releasing early resets the bar; pressing left cancels the hold. Hold left to
 cancel the action (or lock from Home).
 Pressing both physical buttons together does nothing. The joystick is unused.
@@ -58,9 +78,11 @@ firmware updates, secure-element storage, integration into the existing web
 wallet's Send/Swap signer, audited production security, or physical boot validation.
 The browser wallet's existing assets are not migrated and its keys are not used.
 
-No seed or PIN export exists. The computer receives only public information and
-signatures after physical confirmation. Computer-supplied messages are labeled
-informational and cannot authorize a payment.
+PIN export does not exist. `open_wallet` releases seed entropy only after local
+click approval; `approve_and_release` requires all payment review pages and the
+final local confirmation. Both require a configured, unlocked device. Generic
+messages cannot authorize a payment or release a seed. Never log USB result
+payloads or use funded recovery phrases in screenshots or automated tests.
 
 ## Build an image in GitHub
 
@@ -208,8 +230,8 @@ Its commit should match the downloaded artifact's `build-manifest.json`.
 The website also shows the version and source commit reported over USB.
 These are diagnostics, not cryptographic firmware attestation.
 
-An early, keyless OLED service shows the supplied Satooshi wordmark and
-`satooshi.io/start` before loading the wallet's cryptography. USB gadget setup
+An early, keyless OLED service shows only the supplied Satooshi wordmark
+before loading the wallet's cryptography. The setup address appears when ready. USB gadget setup
 also starts during early system initialization, independently of the splash.
 Unused network waits and offline maintenance timers are disabled. Target-Python
 bytecode is precompiled. Secure randomness, vault protections, filesystem checks

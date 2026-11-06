@@ -16,7 +16,7 @@ def run():
     args = parser.parse_args()
     os.umask(0o077)
     hardware = Bonnet()
-    hardware.render(("SATOOSHI START", ["Head over to", "satooshi.io/start"], ""))
+    hardware.render(("SATOOSHI LOGO", [], ""))
     # Show the public logo before importing signing, KDF and vault libraries.
     # Secure entropy initialization remains intact; it is never bypassed for speed.
     from .controller import Controller
@@ -75,7 +75,7 @@ def run():
             screen = controller.display()
             if controller.error:
                 screen = ("Action stopped", [controller.error], "")
-            reviewing = controller.phase in ("review", "preview_review")
+            reviewing = controller.phase in ("review", "preview_review", "browser_review", "browser_review_release")
             hardware.render(screen, phase=controller.phase, step=controller.step,
                             steps=len(controller.review.pages()) if reviewing else 0,
                             progress=controller.hold_progress,

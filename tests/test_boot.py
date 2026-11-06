@@ -16,7 +16,7 @@ class BootTests(unittest.TestCase):
     def test_early_splash_shows_real_home_and_leaves_display_on(self):
         with patch.object(splash, "OLED") as oled:
             splash.run()
-            expected = Screen().render(("SATOOSHI START", [], ""), phase="home")
+            expected = Screen().render(("SATOOSHI LOGO", [], ""), phase="home")
             actual = oled.return_value.show.call_args.args[0]
             self.assertEqual(expected.tobytes(), actual.tobytes())
             oled.return_value.close.assert_called_once_with(blank=False)
@@ -35,8 +35,8 @@ class BootTests(unittest.TestCase):
     def test_wordmark_is_bounded_one_bit_and_not_empty(self):
         logo = Screen().wordmark
         self.assertEqual(logo.mode, "1")
-        self.assertLessEqual(logo.width, 112)
-        self.assertLessEqual(logo.height, 23)
+        self.assertLessEqual(logo.width, 124)
+        self.assertLessEqual(logo.height, 26)
         self.assertIsNotNone(logo.getbbox())
 
     def test_early_services_do_not_wait_for_wallet_or_network(self):

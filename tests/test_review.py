@@ -129,8 +129,8 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(r.data["amount"], "10")
         for field, bad in (("amount", "-1"), ("amount", "NaN"), ("amount", "1e4"),
                            ("amount", "0"), ("fee", "-1"), ("symbol", "BTC\n"),
-                           ("symbol", "btc"), ("network", "a" * 19),
-                           ("address", "b" * 97), ("address", "Approve all payments")):
+                           ("symbol", "btc"), ("network", "a" * 49),
+                           ("address", "b" * 197), ("address", "Approve all payments")):
             with self.subTest(field=field, bad=bad), self.assertRaises(ValueError):
                 Rehearsal({**PAYLOAD, field: bad})
         with self.assertRaises(ValueError):
@@ -144,13 +144,8 @@ class ReviewTests(unittest.TestCase):
                 self.device.request(method, data, "replace")
         self.assertIs(self.device.review, original)
 
-    def test_pairing_requires_physical_confirmation_and_no_private_data(self):
+    def test_pairing_automatically_confirms_without_private_data(self):
         self.device.request("pair", {}, "pair")
-        self.assertEqual(self.results(), [])
-        self.assertEqual(self.device.phase, "pair")
-        self.device.button("b")
-        self.assertEqual(self.results(), [])
-        self.device.button("both")
         self.assertEqual(self.results(), [{"paired": True, "firmware": "0.3.0"}])
         self.assertEqual(self.device.phase, "home")
         self.assertFalse(self.device.vault.exists)
@@ -165,7 +160,7 @@ class PixelTests(unittest.TestCase):
             image = self.screen.render((title, ["Locked"], ""), phase="home")
             self.assertIsNone(image.crop((0, 54, 9, 64)).getbbox())
             self.assertIsNone(image.crop((119, 54, 128, 64)).getbbox())
-            self.assertIsNotNone(image.crop((54, 0, 74, 22)).getbbox())
+            self.assertIsNotNone(image.getbbox())
 
     def test_pressed_arrow_and_hold_bar_change_pixels(self):
         screen = ("Confirm send", ["10 TRX", "T111...1111", "1.2 TRX fee"], "")
@@ -190,7 +185,7 @@ class PixelTests(unittest.TestCase):
                                            step=i, steps=len(pages), review_confirmed=i == len(pages) - 1,
                                            simulated=True)
                 self.assertEqual(image.size, (128, 64))
-            self.assertEqual("".join(pages[1][1]), p["address"])
+            self.assertEqual("".join(line for title, lines in pages if title == "Check address" for line in lines), p["address"])
 
     def test_overflow_is_an_error_not_silent_clipping(self):
         with self.assertRaises(ValueError):

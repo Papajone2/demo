@@ -39,18 +39,18 @@ class ButtonTests(unittest.TestCase):
     def test_right_hold_confirms_only_after_release(self):
         self.poll((False, True), 0.01)
         self.poll((False, True), 0.04)
-        self.assertIsNone(self.poll((False, True), 1.1))
+        self.assertIsNone(self.poll((False, True), 2.1))
         self.poll((False, False), 0.01)
         self.assertEqual(self.poll((False, False), 0.04), "both")
 
     def test_left_hold_cancels(self):
-        self.assertEqual(self.press((True, False), 1.1), "cancel")
+        self.assertEqual(self.press((True, False), 2.1), "cancel")
 
     def test_simultaneous_buttons_do_not_confirm(self):
-        self.assertIsNone(self.press((True, True), 1.1))
+        self.assertIsNone(self.press((True, True), 2.1))
 
     def test_timing_state_resets_after_release(self):
-        self.assertEqual(self.press((False, True), 1.1), "both")
+        self.assertEqual(self.press((False, True), 2.1), "both")
         self.assertEqual(self.press((False, True), 0.1), "b")
 
 

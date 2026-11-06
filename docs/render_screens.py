@@ -1,5 +1,6 @@
 """Render real firmware OLED layouts using public sample values, never a vault."""
 import argparse
+import math
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from satooshi.rehearsal import Rehearsal
@@ -12,26 +13,31 @@ def run():
     args = parser.parse_args()
     renderer = Screen()
     samples = [
-        ("Welcome", ("SATOOSHI START", [], ""), dict(phase="home")),
-        ("Home - no arrows", ("SATOOSHI PRO", ["Unlocked"], ""), dict(phase="home")),
-        ("Device pairing", ("Connect wallet?", ["Satooshi web wallet", "Hold right to pair", "Left to decline"], ""), dict(phase="pair")),
+        ("Instant splash - logo only", ("SATOOSHI LOGO", [], ""), dict(phase="home")),
+        ("Ready to connect", ("SATOOSHI START", [], ""), dict(phase="home")),
+        ("Connected home", ("SATOOSHI LOGO", [], ""), dict(phase="home")),
+        ("Open device wallet", ("Open wallet?", ["Confirm on device"], ""), dict(phase="wallet_open")),
+        ("Create / Recover", ("Set up Satooshi", ["Choose your wallet"], ""), dict(phase="setup_confirm")),
+        ("Recovery word", ("Word 1 of 24", ["abandon"], "Next word"), dict(phase="backup")),
+        ("Word check - hold", ("Check word #5", ["abandon", "1 of 3"], "Hold right 2s"),
+         dict(phase="quiz", progress=.55, pressed=(False, True))),
+        ("Restore on device", ("Restore word 1/24", ["abandon"], "Hold right 2s"), dict(phase="recover")),
+        ("Optional PIN", ("Set a PIN?", ["Protect this device"], ""), dict(phase="pin_choice")),
+        ("PIN digit - hold", ("Choose PIN", ["**", "5"], "Hold right 2s"),
+         dict(phase="pin", progress=.65, pressed=(False, True))),
     ]
-    p = dict(operation="swap", amount="10", symbol="TRX",
+    p = dict(operation="send", amount="10", symbol="TRX",
              address="T111111111111111111111111111111111", fee="1.2", feeSymbol="TRX",
-             network="Tron", receiveAmount="0.00001", receiveSymbol="BTC")
+             network="tron-mainnet")
     pages = Rehearsal(p).pages()
     for i, page in enumerate(pages):
-        samples.append(("Swap review %d/%d" % (i + 1, len(pages)), (*page, ""),
-                        dict(phase="preview_review", step=i, steps=len(pages), simulated=True,
+        samples.append(("Real browser payment %d/%d" % (i + 1, len(pages)), (*page, ""),
+                        dict(phase="browser_review_release", step=i, steps=len(pages),
                              review_confirmed=i == len(pages) - 1)))
     samples += [
-        ("Holding right - 50%", (*pages[-1], ""), dict(phase="preview_review", step=4, steps=5,
-              simulated=True, review_confirmed=True, pressed=(False, True), progress=0.5)),
-        ("Approval complete", ("Approval complete", ["No funds moved"], ""), dict(phase="success")),
-        ("Computer message", ("From computer", ["Welcome to Satooshi.", "Your device is ready."], ""), dict(phase="message")),
-        ("PIN - device only", ("Choose PIN", ["****", "> 5"], ""), dict(phase="pin")),
+        ("Approval acknowledged", ("Payment approved", ["Return to wallet"], ""), dict(phase="success")),
     ]
-    canvas = Image.new("RGB", (1200, 4 * 254), "#111315")
+    canvas = Image.new("RGB", (1200, math.ceil(len(samples) / 3) * 254), "#111315")
     draw = ImageDraw.Draw(canvas)
     font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 13)
     for i, (label, screen, options) in enumerate(samples):

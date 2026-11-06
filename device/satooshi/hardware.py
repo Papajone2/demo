@@ -27,7 +27,7 @@ class Bonnet:
         now = time.monotonic()
         if raw != self.previous:
             self.previous, self.since = raw, now
-        if now - self.since < 0.035 or raw == self.stable:
+        if now - self.since < 0.020 or raw == self.stable:
             return None
         self.stable = raw
         if any(raw) and self.press_started is None:
@@ -41,8 +41,8 @@ class Bonnet:
             # Left/right only: a deliberate right hold selects/confirms.
             # Simultaneous presses are ignored so an accidental chord cannot sign.
             key = None if self.suppress_release or len(self.pressed) == 2 else (
-                "both" if "b" in self.pressed and held >= 0.9 else
-                "cancel" if "a" in self.pressed and held >= 0.9 else next(iter(self.pressed)))
+                "both" if "b" in self.pressed and held >= 2 else
+                "cancel" if "a" in self.pressed and held >= 2 else next(iter(self.pressed)))
             self.pressed = set()
             self.press_started = None
             self.suppress_release = False

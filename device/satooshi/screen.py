@@ -1,6 +1,7 @@
 """Pixel-measured monochrome OLED rendering, also used for offline image tests."""
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
+from .pixel_font import PixelFont
 
 
 class Screen:
@@ -10,10 +11,16 @@ class Screen:
         # Debian's fonts-dejavu-core is installed in the image. Never silently use
         # a different-width fallback for transaction data.
         font = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
-        self.small = ImageFont.truetype(font, 8)
-        self.body = ImageFont.truetype(font, 9)
+        self.small = PixelFont()
+        self.body = PixelFont()
+        self.compact = ImageFont.truetype(font, 8)
         self.large = ImageFont.truetype(font, 12)
+        self.title = PixelFont()
+        self.readable = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 11)
+        self.word = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
         self.wordmark = Image.open(Path(__file__).with_name("assets") / "wordmark.png").convert("1")
+        self.wordmark = self.wordmark.resize(
+            (124, round(self.wordmark.height * 124 / self.wordmark.width)), Image.Resampling.NEAREST)
 
     @staticmethod
     def logo(draw, x, y, size=16):
@@ -48,14 +55,43 @@ class Screen:
         image = Image.new("1", (128, 64))
         draw = ImageDraw.Draw(image)
         if phase == "home":
-            image.paste(self.wordmark, ((128 - self.wordmark.width) // 2, 8))
+            image.paste(self.wordmark, ((128 - self.wordmark.width) // 2,
+                                       8 if title == "SATOOSHI START" else (64 - self.wordmark.height) // 2))
             if title == "SATOOSHI START":
-                self.center(draw, "Head over to", 39, self.small)
-                self.center(draw, "satooshi.io/start", 51, self.small)
-            else:
-                self.center(draw, body[0], 39, self.body)
-                self.center(draw, "Connect to your wallet", 53, self.small)
+                self.center(draw, "Head over to", 38, self.title)
+                self.center(draw, "satooshi.io/start", 51, self.title)
             return image  # Home is intentionally free of navigation arrows.
+        if phase in ("setup_confirm", "pin_choice", "unlock_confirm", "no_pin_confirm", "wallet_open"):
+            self.center(draw, title, 7, self.readable)
+            self.center(draw, body[0], 25, self.title)
+            labels = ("Recover", "New wallet") if phase == "setup_confirm" else (
+                ("No", "Yes") if phase == "pin_choice" else ("Back", "Confirm"))
+            self.buttons(draw, labels, pressed)
+            return image
+        if phase in ("backup", "quiz", "recover"):
+            self.center(draw, title, 2, self.title)
+            self.center(draw, body[0], 22, self.word)
+            self.hold_bar(image, draw, progress, footer if phase == "backup" and step < 23 else "Hold right 2s")
+            self.arrows(draw, pressed)
+            return image
+        if phase == "pin":
+            self.center(draw, title, 1, self.title)
+            self.center(draw, body[0] or "_", 14, self.body)
+            selected = int(body[1])
+            # Ten easily readable digits in one row; Done/Delete remain explicit.
+            for digit in range(10):
+                x = 5 + digit * 12
+                draw.text((x, 28), str(digit), font=self.readable, fill=1, anchor="lt")
+                if digit == selected:
+                    draw.line((x, 41, x + 7, 41), fill=1)
+            draw.text((6, 44), "Done", font=self.small, fill=1, anchor="lt")
+            draw.text((88, 44), "Delete", font=self.small, fill=1, anchor="lt")
+            if selected in (10, 11):
+                x, width = (6, 20) if selected == 10 else (88, 29)
+                draw.line((x, 52, x + width, 52), fill=1)
+            self.hold_bar(image, draw, progress, "Hold right 2s")
+            self.arrows(draw, pressed)
+            return image
         if phase == "success":
             draw.line([(51, 15), (60, 24), (78, 6)], fill=1, width=2)
             self.center(draw, title, 32, self.body)
@@ -65,31 +101,60 @@ class Screen:
         # Compact page number is right-aligned; don't overlap heading.
         number = "%d/%d" % (step + 1, steps) if steps else ""
         number_width = draw.textlength(number, font=self.small)
-        if draw.textlength(label, font=self.small) > (122 - number_width - (4 if number else 0)):
+        if draw.textlength(label, font=self.title) > (122 - number_width - (4 if number else 0)):
             raise ValueError("Device title exceeds available pixels")
-        draw.text((2, 1), label, font=self.small, fill=1, anchor="lt")
+        draw.text((2, 1), label, font=self.title, fill=1, anchor="lt")
         if number:
             draw.text((126 - number_width, 1), number, font=self.small, fill=1, anchor="lt")
-        font = self.small if phase in ("review", "preview_review", "address", "message") else self.body
+        font = self.body if phase in ("review", "preview_review", "browser_review", "browser_review_release", "address", "message") else self.readable
+        if phase == "message":
+            font = self.small
+        if review_confirmed and any(draw.textlength(str(value), font=font) > 124 for value in body):
+            font = self.compact
         lines = []
         for value in body:
             lines.extend(self.wrap(draw, value, font))
-        limit = 5 if review_confirmed else 4
+        limit = 4
         if len(lines) > limit:
             raise ValueError("Device screen overflow; action cannot be safely reviewed")
-        spacing, top = (8, 12) if len(lines) == 5 else (9, 14)
+        spacing, top = (9, 14)
         for i, line in enumerate(lines):
             draw.text((2, top + i * spacing), line, font=font, fill=1, anchor="lt")
-        if progress > 0:
-            draw.rectangle((17, 55, 110, 62), outline=1)
-            end = 18 + round(91 * min(1, progress))
-            if end > 18:
-                draw.rectangle((18, 56, end, 61), fill=1)
+        if phase in ("browser_review", "browser_review_release"):
+            self.buttons(draw, ("Back", "Confirm"), pressed)
+        elif progress > 0:
+            self.hold_bar(image, draw, progress, "Hold right 3s")
         else:
             hint = "Hold right 3s" if review_confirmed else "Hold to confirm"
             if simulated:
                 hint = "Preview / hold 3s" if review_confirmed else "Preview / confirm"
             self.center(draw, hint, 56, self.small)
+        if phase not in ("browser_review", "browser_review_release"):
+            self.arrows(draw, pressed)
+        return image
+
+    def buttons(self, draw, labels, pressed):
+        for x, label, active in ((1, labels[0], pressed[0]), (65, labels[1], pressed[1])):
+            draw.rounded_rectangle((x, 50, x + 61, 63), radius=3, outline=1, fill=1 if active else 0)
+            width = draw.textlength(label, font=self.title)
+            draw.text((x + (61 - width) / 2, 52), label, font=self.title,
+                      fill=0 if active else 1, anchor="lt")
+
+    def arrows(self, draw, pressed):
         draw.polygon([(3, 59), (8, 55), (8, 63)], outline=1, fill=1 if pressed[0] else 0)
         draw.polygon([(124, 59), (119, 55), (119, 63)], outline=1, fill=1 if pressed[1] else 0)
-        return image
+
+    def hold_bar(self, image, draw, progress, text):
+        # The text stays legible as the white progress fill crosses it.
+        draw.rectangle((14, 54, 113, 63), outline=1, fill=0)
+        end = 15 + round(97 * min(1, progress))
+        if progress > 0:
+            draw.rectangle((15, 55, end, 62), fill=1)
+        mask = Image.new("1", image.size)
+        md = ImageDraw.Draw(mask)
+        width = md.textlength(text, font=self.small)
+        md.text(((128 - width) / 2, 55), text, font=self.small, fill=1, anchor="lt")
+        for y in range(55, 63):
+            for x in range(15, 113):
+                if mask.getpixel((x, y)):
+                    image.putpixel((x, y), 0 if image.getpixel((x, y)) else 1)

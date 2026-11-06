@@ -11,7 +11,7 @@ def run():
             display = OLED()
             try:
                 display.show(Screen().render(
-                    ("SATOOSHI START", [], ""), phase="home"))
+                    ("SATOOSHI LOGO", [], ""), phase="home"))
             finally:
                 # Leave the image visible until the wallet takes over.
                 display.close(blank=False)
