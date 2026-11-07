@@ -158,7 +158,8 @@ class DeviceTests(unittest.TestCase):
         self.device.button("b")
         results = [x["data"]["result"] for x in self.events if x["event"] == "result"]
         self.assertEqual(results[0]["address"], ADDRESS)
-        self.assertEqual(len(results[0]["publicKeys"]), 15)
+        from satooshi.signing import KINDS
+        self.assertEqual(set(results[0]["publicKeys"]), set(KINDS) | {"cardanoStake"})
         self.assertNotIn("entropy", repr(results))
         self.assertNotIn(ENTROPY.hex(), repr(results))
 

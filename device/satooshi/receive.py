@@ -35,6 +35,9 @@ def receive_address(entropy, kind):
         return address(entropy)
     if kind in SECP_PATHS:
         key = bip32.HDKey.from_seed(_seed(entropy)).derive(SECP_PATHS[kind]).key.get_public_key().sec()
+        if kind in ("cosmos", "celestia", "akash", "fetch"):
+            # Cosmos account Bech32, NOT the SegWit witness encoder.
+            return bech32.bech32_encode(bech32.Encoding.BECH32, kind, bech32.convertbits(hash160(key), 8, 5))
         if kind in ("bitcoin", "litecoin"):
             return bech32.encode("bc" if kind == "bitcoin" else "ltc", 0, hash160(key))
         if kind == "dogecoin":

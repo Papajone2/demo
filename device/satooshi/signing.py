@@ -20,6 +20,8 @@ SECP_PATHS = {
     "bitcoin": "m/84h/0h/0h/0/0", "litecoin": "m/84h/2h/0h/0/0",
     "dogecoin": "m/44h/3h/0h/0/0", "bitcoincash": "m/44h/145h/0h/0/0",
     "xrp": "m/44h/144h/0h/0/0",
+    "cosmos": "m/44h/118h/0h/0/0", "celestia": "m/44h/118h/0h/0/0",
+    "akash": "m/44h/118h/0h/0/0", "fetch": "m/44h/118h/0h/0/0",
 }
 ED_PATHS = {
     "solana": [44, 501, 0, 0], "stellar": [44, 148, 0],
