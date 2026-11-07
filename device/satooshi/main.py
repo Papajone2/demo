@@ -52,7 +52,8 @@ def run():
                         dropping = True
                     else:
                         buffer.append(byte)
-            key = hardware.poll()
+            final_hold = controller.phase in ("review", "preview_review") and controller.step == len(controller.review.pages()) - 1
+            key = hardware.poll(hold_select=controller.phase in ("pin", "recover") or final_hold)
             if key:
                 try:
                     controller.button(key)
@@ -89,7 +90,7 @@ def run():
                 except (serial.SerialTimeoutException, serial.SerialException):
                     outputs.clear()
                     controller.lock()
-            time.sleep(0.01)
+            time.sleep(0.005)
     finally:
         controller.lock()
         hardware.close()

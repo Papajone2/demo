@@ -71,7 +71,10 @@ class Screen:
         if phase in ("backup", "quiz", "recover"):
             self.center(draw, title, 2, self.title)
             self.center(draw, body[0], 22, self.word)
-            self.hold_bar(image, draw, progress, footer if phase == "backup" and step < 23 else "Hold right 2s")
+            if phase == "recover":
+                self.hold_bar(image, draw, progress, "Hold right 1s")
+            else:
+                self.center(draw, footer, 49, self.small)
             self.arrows(draw, pressed)
             return image
         if phase == "pin":
@@ -89,8 +92,15 @@ class Screen:
             if selected in (10, 11):
                 x, width = (6, 20) if selected == 10 else (88, 29)
                 draw.line((x, 52, x + width, 52), fill=1)
-            self.hold_bar(image, draw, progress, "Hold right 2s")
+            self.center(draw, "Hold right 1s", 55, self.small)
             self.arrows(draw, pressed)
+            return image
+        if phase == "receive_address":
+            self.center(draw, title, 0, self.title)
+            self.center(draw, body[0][:18], 13, self.small)
+            for i, line in enumerate(body[1:]):
+                self.center(draw, line, 25 + i * 12, self.body)
+            self.buttons(draw, ("Back", footer), pressed)
             return image
         if phase == "success":
             draw.line([(51, 15), (60, 24), (78, 6)], fill=1, width=2)
@@ -123,11 +133,11 @@ class Screen:
         if phase in ("browser_review", "browser_review_release"):
             self.buttons(draw, ("Back", "Confirm"), pressed)
         elif progress > 0:
-            self.hold_bar(image, draw, progress, "Hold right 3s")
+            self.hold_bar(image, draw, progress, "Hold right 1s")
         else:
-            hint = "Hold right 3s" if review_confirmed else "Hold to confirm"
+            hint = "Hold right 1s" if review_confirmed else "Hold to confirm"
             if simulated:
-                hint = "Preview / hold 3s" if review_confirmed else "Preview / confirm"
+                hint = "Preview / hold 1s" if review_confirmed else "Preview / confirm"
             self.center(draw, hint, 56, self.small)
         if phase not in ("browser_review", "browser_review_release"):
             self.arrows(draw, pressed)

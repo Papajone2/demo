@@ -1,4 +1,7 @@
 """Small SSD1306 transport shared by early boot and the wallet runtime."""
+from PIL import Image
+
+REVERSE_BITS = bytes(int(f"{value:08b}"[::-1], 2) for value in range(256))
 
 
 class OLED:
@@ -21,11 +24,9 @@ class OLED:
         self.command(0x22)
         self.command(0)
         self.command(7)
-        data = []
-        for page in range(8):
-            for x in range(128):
-                data.append(sum(1 << bit for bit in range(8)
-                                if image.getpixel((x, page * 8 + bit))))
+        # PIL transposes the bitmap in C; avoid 8,192 Python pixel lookups/frame.
+        columns = image.transpose(Image.Transpose.TRANSPOSE).tobytes()
+        data = [REVERSE_BITS[value] for page in range(8) for value in columns[page::8]]
         for start in range(0, len(data), 32):
             self.bus.write_i2c_block_data(self.address, 0x40, data[start:start + 32])
 

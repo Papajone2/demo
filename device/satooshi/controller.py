@@ -45,10 +45,10 @@ class Controller:
                     pinEnabled=meta.get("pin", False), error=self.error,
                     capabilities=["ethereum-native-eip1559", "sepolia-native-eip1559"],
                     previewCapabilities=["send", "swap", "receive", "message"],
-                    controls="left-right-hold", confirmHoldMs=2000, prototype=True,
+                    controls="left-right-hold", confirmHoldMs=1000, prototype=True,
                     autoPair=True, paired=self.connected,
                     bootReadySeconds=self.boot_ready_seconds,
-                    approvalCapabilities=["device-blind-signing-v1"])
+                    approvalCapabilities=["device-blind-signing-v1", "receive-address-v1"])
 
     def changed(self):
         self.emit({"event": "state", "data": self.status()})
@@ -82,7 +82,7 @@ class Controller:
                 self.vault.atomic_write(self.vault.directory / "welcome-seen", b"1")
                 self.welcome_seen = True
             return {**self.status(), "autoPair": True, "paired": True,
-                    "approvalCapabilities": ["device-blind-signing-v1"]}
+                    "approvalCapabilities": ["device-blind-signing-v1", "receive-address-v1"]}
         if method == "cancel":
             self.cancel()
             return self.status()
@@ -137,6 +137,20 @@ class Controller:
             if params:
                 raise ValueError("Only account 0, Ethereum address is supported")
             self.pending, self.phase = request_id, "address"
+        elif method == "get_asset_address":
+            self.require_unlock()
+            from .receive import receive_address
+            from .signing import KINDS
+            if set(params) != {"kind", "address", "network"} or params["kind"] not in KINDS:
+                raise ValueError("Unsupported receive address request")
+            expected = receive_address(self.entropy, params["kind"])
+            if not isinstance(params["address"], str) or not secrets.compare_digest(expected, params["address"]):
+                raise ValueError("Website address does not match this device")
+            if not isinstance(params["network"], str) or not 1 <= len(params["network"]) <= 40 or not params["network"].isascii() or not params["network"].isprintable():
+                raise ValueError("Invalid network label")
+            self.receive_address, self.receive_network = expected, params["network"]
+            self.pending, self.phase, self.step = request_id, "receive_address", 0
+            self.receive_pages = textwrap.wrap(expected, 18)
         elif method == "review_transfer":
             self.require_unlock()
             self.start_review(Transfer(params), request_id, "review")
@@ -277,25 +291,20 @@ class Controller:
             if key == "a":
                 self.step = max(0, self.step - 1)
             elif key == "b":
-                self.step = min(23, self.step + 1)
+                if self.step < 23:
+                    self.step += 1
+                else:
+                    self.phase, self.step = "quiz", 0
             elif self.step == 23:
-                self.quiz_positions = sorted(secrets.SystemRandom().sample(range(24), 3))
-                self.quiz_index = 0
-                self._new_quiz()
-                self.phase = "quiz"
+                self.phase, self.step = "quiz", 0
         elif phase == "quiz":
             if key == "a":
-                self.choice = (self.choice - 1) % 3
-            elif key == "b":
-                self.choice = (self.choice + 1) % 3
-            elif self.quiz[self.choice] == self._words()[self.quiz_positions[self.quiz_index]]:
-                self.quiz_index += 1
-                if self.quiz_index == 3:
+                self.step = max(0, self.step - 1)
+            elif key in ("b", "both"):
+                if self.step == 23:
                     self.phase, self.choice = "pin_choice", 0
                 else:
-                    self._new_quiz()
-            else:
-                self.error = "Try that word again"
+                    self.step += 1
         elif phase == "pin_choice":
             if key in ("b", "both"):
                 self._begin_pin("new")
@@ -327,6 +336,19 @@ class Controller:
                 self.pin += str(self.digit)
             else:
                 self.error = "Select Done (max 12)"
+        elif phase == "receive_address":
+            last = (len(self.receive_pages) - 1) // 2
+            if key == "a":
+                if self.step:
+                    self.step -= 1
+                else:
+                    self.cancel()
+            elif key == "b":
+                if self.step < last:
+                    self.step += 1
+                else:
+                    self.result({"address": self.receive_address, "verified": True})
+                    self.phase = "home"
         elif phase == "unlock_confirm":
             if key == "a":
                 self.cancel()
@@ -390,13 +412,16 @@ class Controller:
 
     def hold(self, right, left=False):
         """Only the local GPIO runtime supplies this, never the USB protocol."""
-        if self.phase in ("backup", "quiz", "pin", "recover"):
+        if self.phase in ("backup", "quiz"):
+            self.hold_started, self.hold_progress = None, 0
+            return
+        if self.phase in ("pin", "recover"):
             # Latch at full until release, even when held for much longer.
             # The debounced release emits one selection, never repeated digits.
             if right and not left:
                 if self.hold_started is None:
                     self.hold_started = self.clock()
-                self.hold_progress = min(1, (self.clock() - self.hold_started) / 2)
+                self.hold_progress = min(1, self.clock() - self.hold_started)
                 self.last_action = self.clock()
             else:
                 self.hold_started, self.hold_progress = None, 0
@@ -415,7 +440,7 @@ class Controller:
             return
         if self.hold_started is None:
             self.hold_started = self.clock()
-        self.hold_progress = min(1, (self.clock() - self.hold_started) / 3)
+        self.hold_progress = min(1, self.clock() - self.hold_started)
         self.last_action = self.clock()
         if self.hold_progress < 1:
             return
@@ -450,11 +475,14 @@ class Controller:
     def display(self):
         if self.phase == "backup":
             return ("Word %d of 24" % (self.step + 1),
-                    [self._words()[self.step]], "Hold right 2s" if self.step == 23 else "Next word")
+                    [self._words()[self.step]], "Review words" if self.step == 23 else "Next word")
         if self.phase == "quiz":
-            return ("Check word #%d" % (self.quiz_positions[self.quiz_index] + 1),
-                    [self.quiz[self.choice], "%d of 3" % (self.quiz_index + 1)],
-                    "Hold right 2s")
+            return ("Check word %d/24" % (self.step + 1),
+                    [self._words()[self.step]], "Finish review" if self.step == 23 else "Next word")
+        if self.phase == "receive_address":
+            last = (len(self.receive_pages) - 1) // 2
+            return ("Verify address", [self.receive_network] + self.receive_pages[self.step * 2:self.step * 2 + 2],
+                    "Confirm" if self.step == last else "Next")
         if self.phase == "recover":
             return ("Restore word %d/24" % (len(self.recovered_words) + 1),
                     [WORDLIST.wordlist[self.digit]], "Hold right 2s")

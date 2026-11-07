@@ -210,6 +210,23 @@ class DeviceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.device.request(method, {}, "locked")
 
+    def test_receive_requires_matching_local_address_and_all_pages(self):
+        from satooshi.receive import receive_address
+        self.configured()
+        address = receive_address(ENTROPY, "cardano")
+        params = dict(kind="cardano", address=address, network="Cardano")
+        with self.assertRaises(ValueError):
+            self.device.request("get_asset_address", {**params, "address": "wrong"}, "wrong")
+        self.device.request("get_asset_address", params, "receive")
+        self.assertEqual(self.device.phase, "receive_address")
+        self.assertFalse(any(x["event"] == "result" for x in self.events))
+        for page in range((len(self.device.receive_pages) + 1) // 2):
+            self.assertEqual(self.device.step, page)
+            self.device.button("b")
+        result = [x["data"]["result"] for x in self.events if x["event"] == "result"]
+        self.assertEqual(result, [{"verified": True, "address": address}])
+        self.assertEqual(self.device.phase, "home")
+
     def test_vault_is_encrypted_and_permissions_private(self):
         self.vault.create(ENTROPY, "1234")
         raw = self.vault.path.read_bytes()
@@ -263,11 +280,10 @@ class DeviceTests(unittest.TestCase):
         for _ in range(23):
             self.device.button("b")
         self.device.button("both")
-        for _ in range(3):
-            correct = self.device._words()[self.device.quiz_positions[self.device.quiz_index]]
-            while self.device.quiz[self.device.choice] != correct:
-                self.device.button("b")
-            self.device.button("both")
+        for i in range(24):
+            self.assertEqual(self.device.phase, "quiz")
+            self.assertEqual(self.device.display()[1], [self.device._words()[i]])
+            self.device.button("b")
         self.device.button("both")  # Choose PIN.
         self.enter_pin("1234")
         self.assertFalse(self.vault.exists)

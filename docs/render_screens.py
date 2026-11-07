@@ -19,11 +19,11 @@ def run():
         ("Open device wallet", ("Open wallet?", ["Confirm on device"], ""), dict(phase="wallet_open")),
         ("Create / Recover", ("Set up Satooshi", ["Choose your wallet"], ""), dict(phase="setup_confirm")),
         ("Recovery word", ("Word 1 of 24", ["abandon"], "Next word"), dict(phase="backup")),
-        ("Word check - hold", ("Check word #5", ["abandon", "1 of 3"], "Hold right 2s"),
+        ("Review all 24 words", ("Check word 1/24", ["abandon"], "Next word"),
          dict(phase="quiz", progress=.55, pressed=(False, True))),
-        ("Restore on device", ("Restore word 1/24", ["abandon"], "Hold right 2s"), dict(phase="recover")),
+        ("Restore on device", ("Restore word 1/24", ["abandon"], "Hold right 1s"), dict(phase="recover")),
         ("Optional PIN", ("Set a PIN?", ["Protect this device"], ""), dict(phase="pin_choice")),
-        ("PIN digit - hold", ("Choose PIN", ["**", "5"], "Hold right 2s"),
+        ("PIN: tap to move", ("Choose PIN", ["**", "5"], "Hold right 1s"),
          dict(phase="pin", progress=.65, pressed=(False, True))),
     ]
     p = dict(operation="send", amount="10", symbol="TRX",
@@ -35,6 +35,8 @@ def run():
                         dict(phase="browser_review_release", step=i, steps=len(pages),
                              review_confirmed=i == len(pages) - 1)))
     samples += [
+        ("Receive: review every page", ("Verify address", ["Solana", "111111111111111111", "111111111111111111"], "Next"),
+         dict(phase="receive_address")),
         ("Approval acknowledged", ("Payment approved", ["Return to wallet"], ""), dict(phase="success")),
     ]
     canvas = Image.new("RGB", (1200, math.ceil(len(samples) / 3) * 254), "#111315")

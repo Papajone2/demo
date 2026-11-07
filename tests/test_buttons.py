@@ -53,6 +53,15 @@ class ButtonTests(unittest.TestCase):
         self.assertEqual(self.press((False, True), 2.1), "both")
         self.assertEqual(self.press((False, True), 0.1), "b")
 
+    def test_navigation_fires_on_press_without_a_hold_or_duplicate_release(self):
+        self.raw = (False, True)
+        with patch("satooshi.hardware.time.monotonic", return_value=10):
+            self.bonnet.poll(hold_select=False)
+        with patch("satooshi.hardware.time.monotonic", return_value=10.009):
+            self.assertEqual(self.bonnet.poll(hold_select=False), "b")
+        self.assertIsNone(self.poll((False, False), 0.02))
+        self.assertIsNone(self.poll((False, False), 0.02))
+
 
 if __name__ == "__main__":
     unittest.main()

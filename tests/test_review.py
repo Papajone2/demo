@@ -53,7 +53,7 @@ class ReviewTests(unittest.TestCase):
     def test_short_hold_and_old_confirmation_do_not_approve(self):
         self.ready()
         self.device.hold(True)
-        self.now += 2.99
+        self.now += .99
         self.device.hold(True)
         self.assertLess(self.device.hold_progress, 1)
         self.assertEqual(self.results(), [])
@@ -62,17 +62,17 @@ class ReviewTests(unittest.TestCase):
         self.device.button("both")
         self.assertEqual(self.results(), [])
 
-    def test_release_restarts_three_seconds(self):
+    def test_release_restarts_one_second(self):
         self.ready()
         self.device.hold(True)
-        self.now += 2
+        self.now += .6
         self.device.hold(True)
         self.device.hold(False)
         self.device.hold(True)
-        self.now += 2
+        self.now += .6
         self.device.hold(True)
         self.assertEqual(self.results(), [])
-        self.now += 1
+        self.now += .4
         self.device.hold(True)
         self.assertEqual(len(self.results()), 1)
         self.device.hold(True)

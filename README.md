@@ -34,8 +34,9 @@ the setup address; after connecting it remembers to use a logo-only home.
 Pairing is automatic after the browser USB chooser, not a firmware-attestation
 claim. Ordinary choices have labeled left/right buttons and confirm on a click.
 Recovery-word navigation uses corner arrows. Word checks, restoration words and
-PIN digits use a two-second right hold followed by release. The progress bar
-stays full while held and its text inverts against the fill.
+PIN digits use a one-second right hold followed by release. Short taps move
+through digits without a progress bar. Backup words advance on press, then a
+second walkthrough shows all 24 words in order instead of a random-word quiz.
 
 The PIN is optional and can contain 1–12 digits; short PINs are substantially
 weaker. Move across 0–9, Done and Delete with taps, and hold right to select.
@@ -43,7 +44,7 @@ Device restore accepts 24 valid BIP39 words entered on the device, never via USB
 Browser-backed payment review uses clicks through amount/address/fee/summary;
 the final click authorizes a short-lived on-device signing session.
 
-Legacy native ETH signing and simulated previews still use a final three-second hold.
+Legacy native ETH signing and simulated previews use a final one-second hold.
 Releasing early resets the bar; pressing left cancels the hold. Hold left to
 cancel the action (or lock from Home).
 Pressing both physical buttons together does nothing. The joystick is unused.

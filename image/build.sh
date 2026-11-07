@@ -105,7 +105,7 @@ cat >> "$ROOT/boot/firmware/config.txt" <<'CONFIG'
 
 # Satooshi Pro / original Raspberry Pi Zero W or WH (ARMv6)
 [all]
-dtparam=i2c_arm=on
+dtparam=i2c_arm=on,i2c_arm_baudrate=400000
 dtoverlay=dwc2,dr_mode=peripheral
 enable_uart=0
 dtoverlay=disable-wifi

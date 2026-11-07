@@ -22,12 +22,12 @@ class Bonnet:
         self.last_screen = None
         self.suppress_release = False
 
-    def poll(self):
+    def poll(self, hold_select=True):
         raw = (not self.GPIO.input(5), not self.GPIO.input(6))
         now = time.monotonic()
         if raw != self.previous:
             self.previous, self.since = raw, now
-        if now - self.since < 0.020 or raw == self.stable:
+        if now - self.since < 0.008 or raw == self.stable:
             return None
         self.stable = raw
         if any(raw) and self.press_started is None:
@@ -36,13 +36,17 @@ class Bonnet:
             self.pressed.add("a")
         if raw[1]:
             self.pressed.add("b")
+        if any(raw) and not hold_select and len(self.pressed) == 1 and not self.suppress_release:
+            # Navigation is an edge-triggered tap, not a shortened hold.
+            self.suppress_release = True
+            return next(iter(self.pressed))
         if not any(raw) and self.pressed:
             held = now - self.press_started if self.press_started is not None else 0
             # Left/right only: a deliberate right hold selects/confirms.
             # Simultaneous presses are ignored so an accidental chord cannot sign.
             key = None if self.suppress_release or len(self.pressed) == 2 else (
-                "both" if "b" in self.pressed and held >= 2 else
-                "cancel" if "a" in self.pressed and held >= 2 else next(iter(self.pressed)))
+                "both" if "b" in self.pressed and held >= 1 else
+                "cancel" if "a" in self.pressed and held >= 1 else next(iter(self.pressed)))
             self.pressed = set()
             self.press_started = None
             self.suppress_release = False
@@ -50,6 +54,12 @@ class Bonnet:
         return None
 
     def render(self, screen, **options):
+        if options.get("phase") in ("backup", "quiz", "pin"):
+            options["progress"] = 0
+        key = (screen[0], tuple(screen[1]), screen[2], tuple(sorted(options.items())), self.stable)
+        if key == getattr(self, "last_render_key", None):
+            return
+        self.last_render_key = key
         image = self.screen.render(screen, pressed=self.stable, **options)
         frame = image.tobytes()
         if frame == self.last_screen:
