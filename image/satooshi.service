@@ -2,7 +2,7 @@
 Description=Satooshi Pro prototype device
 DefaultDependencies=no
 Wants=local-fs.target systemd-modules-load.service satooshi-usb.service satooshi-splash.service
-After=local-fs.target systemd-modules-load.service satooshi-usb.service
+After=local-fs.target systemd-modules-load.service
 Before=sysinit.target shutdown.target
 Conflicts=shutdown.target
 StartLimitIntervalSec=180

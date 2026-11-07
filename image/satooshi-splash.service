@@ -1,8 +1,9 @@
 [Unit]
 Description=Satooshi early OLED logo (no keys or wallet access)
 DefaultDependencies=no
-Wants=local-fs.target systemd-modules-load.service
-After=local-fs.target systemd-modules-load.service
+Wants=systemd-modules-load.service
+After=systemd-modules-load.service
+RequiresMountsFor=/opt/satooshi/device
 Before=sysinit.target satooshi.service shutdown.target
 Conflicts=shutdown.target
 

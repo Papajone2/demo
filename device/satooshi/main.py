@@ -5,10 +5,12 @@ import os
 import sys
 import time
 
-from .hardware import Bonnet
+from .boot_timing import mark
 
 
 def run():
+    mark("runtime_started")
+    from .hardware import Bonnet
     import serial
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", default="/dev/ttyGS0")
@@ -22,7 +24,16 @@ def run():
     from .controller import Controller
     from .protocol import MAX_FRAME, Protocol
     from .vault import Vault
+    mark("imports_ready")
+    # USB provisioning runs concurrently with image/font/crypto imports.
+    # Never require a connected host here, just the local gadget device node.
+    deadline = time.monotonic() + 35
+    while not os.access(args.port, os.R_OK | os.W_OK):
+        if time.monotonic() >= deadline:
+            raise RuntimeError("USB serial node did not become ready")
+        time.sleep(0.02)
     port = serial.Serial(args.port, baudrate=115200, timeout=0, write_timeout=2)
+    mark("serial_ready")
     outputs = []
 
     def emit(event):
@@ -31,6 +42,7 @@ def run():
 
     controller = Controller(Vault(args.data), emit)
     protocol = Protocol(controller)
+    mark("wallet_ready")
     buffer, dropping = bytearray(), False
     try:
         while True:

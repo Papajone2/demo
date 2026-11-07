@@ -127,6 +127,9 @@ chroot "$ROOT" /usr/bin/qemu-arm-static /bin/systemctl mask \
   systemd-rfkill.service systemd-rfkill.socket
 # Keep OS, entropy, udev and filesystem safety services; remove only unused
 # background maintenance from this offline appliance's critical boot workload.
+chroot "$ROOT" /usr/bin/qemu-arm-static /bin/systemctl mask \
+  cloud-init-local.service cloud-init.service cloud-init-network.service \
+  cloud-init-main.service cloud-config.service cloud-final.service
 chroot "$ROOT" /usr/bin/qemu-arm-static /bin/systemctl disable \
   apt-daily.timer apt-daily-upgrade.timer man-db.timer 2>/dev/null || true
 printf 'KERNEL=="ttyGS0", GROUP="dialout", MODE="0660"\n' \
@@ -137,6 +140,18 @@ rm -f "$ROOT/etc/ssh/"ssh_host_* "$ROOT/usr/sbin/policy-rc.d"
 : > "$ROOT/etc/machine-id"
 rm -f "$ROOT/var/lib/dbus/machine-id" "$ROOT/var/lib/systemd/random-seed"
 find "$ROOT/var/log" -type f -exec truncate -s 0 {} \;
+python3 "$SOURCE/image/optimize-boot.py" "$ROOT"
+
+# Compile the real wordmark once, not on the Zero W's critical splash path.
+chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/env \
+  PYTHONPATH=/opt/satooshi/device /usr/bin/python3 -c '
+from pathlib import Path
+from satooshi.screen import Screen
+from satooshi.oled import OLED
+frame = OLED.frame_bytes(Screen().render(("SATOOSHI LOGO", [], ""), phase="home"))
+assert len(frame) == 1024 and any(frame)
+Path("/opt/satooshi/device/satooshi/assets/splash.bin").write_bytes(frame)
+'
 
 # Execute the real ARM interpreter and crypto code under QEMU before packaging.
 chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/env \

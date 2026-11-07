@@ -22,13 +22,25 @@ SECP_PATHS = {
     "xrp": "m/44h/144h/0h/0/0",
     "cosmos": "m/44h/118h/0h/0/0", "celestia": "m/44h/118h/0h/0/0",
     "akash": "m/44h/118h/0h/0/0", "fetch": "m/44h/118h/0h/0/0",
+    "injective": "m/44h/60h/0h/0/0",
+    "stacks": "m/44h/5757h/0h/0/0",
+    "dash": "m/44h/5h/0h/0/0", "bsv": "m/44h/236h/0h/0/0",
+    "vechain": "m/44h/818h/0h/0/0",
+    "filecoin": "m/44h/461h/0h/0/0",
+    "zcash": "m/44h/133h/0h/0/0",
+    "icp": "m/44h/223h/0h/0/0",
+    "kaspa": "m/44h/111111h/0h/0/0",
 }
 ED_PATHS = {
     "solana": [44, 501, 0, 0], "stellar": [44, 148, 0],
     "aptos": [44, 637, 0, 0, 0], "sui": [44, 784, 0, 0, 0],
     "near": [44, 397, 0],
+    # BIP39/SLIP-0010 Ledger-compatible account, not Algorand's 25-word export.
+    "algorand": [44, 283, 0, 0, 0],
+    "ton": [44, 607, 0], "pi": [44, 314159, 0],
+    "hedera": [44, 3030, 0, 0, 0],
 }
-KINDS = tuple(SECP_PATHS) + tuple(ED_PATHS) + ("cardano", "polkadot")
+KINDS = tuple(SECP_PATHS) + tuple(ED_PATHS) + ("cardano", "polkadot", "bittensor")
 L = Ed25519.order
 
 
@@ -104,6 +116,7 @@ def public_keys(entropy):
     if _sr().satooshi_public(_mini(entropy), output) != 0:
         raise ValueError("Polkadot public derivation failed")
     result["polkadot"] = output.raw.hex()
+    result["bittensor"] = output.raw.hex()
     return result
 
 
@@ -115,6 +128,25 @@ def sign(entropy, kind, message):
             raise ValueError("A 32-byte transaction digest is required")
         key = bip32.HDKey.from_seed(_seed(entropy)).derive(SECP_PATHS[kind]).key.secret
         signer = SigningKey.from_string(key, curve=SECP256k1)
+        if kind == "kaspa":
+            # BIP-340. The nonce and all derived scalars remain on the Pi.
+            def tagged(tag, data):
+                digest = hashlib.sha256(tag.encode()).digest()
+                return hashlib.sha256(digest + digest + data).digest()
+            n, g = SECP256k1.order, SECP256k1.generator
+            point = signer.verifying_key.pubkey.point
+            d = int.from_bytes(key, "big")
+            if point.y() & 1:
+                d = n - d
+            t = bytes(a ^ b for a, b in zip(d.to_bytes(32, "big"), tagged("BIP0340/aux", os.urandom(32))))
+            k = int.from_bytes(tagged("BIP0340/nonce", t + point.x().to_bytes(32, "big") + message), "big") % n
+            if not k:
+                raise ValueError("Invalid Schnorr nonce")
+            r = g * k
+            if r.y() & 1:
+                k = n - k
+            e = int.from_bytes(tagged("BIP0340/challenge", r.x().to_bytes(32, "big") + point.x().to_bytes(32, "big") + message), "big") % n
+            return {"signature": (r.x().to_bytes(32, "big") + ((k + e * d) % n).to_bytes(32, "big")).hex()}
         sig = signer.sign_digest_deterministic(message, hashfunc=hashlib.sha256,
                                                sigencode=util.sigencode_string_canonize)
         candidates = VerifyingKey.from_public_key_recovery_with_digest(sig, message, curve=SECP256k1)
