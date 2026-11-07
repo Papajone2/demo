@@ -1,7 +1,10 @@
 [Unit]
 Description=Satooshi Pro prototype device
-Wants=satooshi-usb.service satooshi-splash.service
-After=satooshi-usb.service satooshi-splash.service
+DefaultDependencies=no
+Wants=local-fs.target systemd-modules-load.service satooshi-usb.service satooshi-splash.service
+After=local-fs.target systemd-modules-load.service satooshi-usb.service
+Before=sysinit.target shutdown.target
+Conflicts=shutdown.target
 StartLimitIntervalSec=180
 StartLimitBurst=30
 
@@ -29,4 +32,4 @@ RestrictAddressFamilies=AF_UNIX
 LockPersonality=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=sysinit.target

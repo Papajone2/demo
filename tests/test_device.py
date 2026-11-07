@@ -150,14 +150,17 @@ class DeviceTests(unittest.TestCase):
         self.assertTrue(self.vault.exists)
         self.assertEqual(self.vault.unlock("7"), ENTROPY)
 
-    def test_open_wallet_releases_only_after_local_click(self):
+    def test_open_wallet_returns_only_public_keys_after_local_click(self):
         self.configured()
         self.device.request("open_wallet", {}, "open")
         self.assertEqual(self.device.phase, "wallet_open")
         self.assertFalse(any(x["event"] == "result" for x in self.events))
         self.device.button("b")
         results = [x["data"]["result"] for x in self.events if x["event"] == "result"]
-        self.assertEqual(results, [{"entropy": ENTROPY.hex(), "address": ADDRESS}])
+        self.assertEqual(results[0]["address"], ADDRESS)
+        self.assertEqual(len(results[0]["publicKeys"]), 15)
+        self.assertNotIn("entropy", repr(results))
+        self.assertNotIn(ENTROPY.hex(), repr(results))
 
     def test_cancel_open_wallet_does_not_release_seed(self):
         self.configured()
@@ -171,7 +174,9 @@ class DeviceTests(unittest.TestCase):
                        address="T111111111111111111111111111111111",
                        fee="1.2", feeSymbol="TRX", network="tron-mainnet",
                        receiveAmount="1.2", receiveSymbol="SUI")
-        self.device.request("approve_and_release", details, "release")
+        with self.assertRaisesRegex(ValueError, "Seed export is disabled"):
+            self.device.request("approve_and_release", details, "old-release")
+        self.device.request("approve_signing", {"review": details, "kind": "tron"}, "signing")
         last = len(self.device.review.pages()) - 1
         self.device.step = last
         self.device.button("b")
@@ -180,10 +185,23 @@ class DeviceTests(unittest.TestCase):
         for _ in range(last + 1):
             self.device.button("b")
         result = [x["data"]["result"] for x in self.events if x["event"] == "result"]
-        self.assertEqual(result, [{"approved": True, "signing": "browser", "operation": "swap",
-                                   "entropy": ENTROPY.hex(), "address": ADDRESS}])
+        self.assertEqual(result[0]["signing"], "device")
+        self.assertTrue(result[0]["approved"])
+        self.assertEqual(result[0]["address"], ADDRESS)
+        self.assertNotIn("entropy", repr(result))
         self.assertNotIn("signature", result[0])
         self.assertNotIn("transactionHash", result[0])
+        signed = self.device.request("sign_payload", {"session": result[0]["session"], "kind": "tron", "message": "07" * 32}, "sig")
+        self.assertEqual(len(signed["signature"]), 128)
+        for params in (
+            {"session": "wrong", "kind": "tron", "message": "07" * 32},
+            {"session": result[0]["session"], "kind": "evm", "message": "07" * 32},
+        ):
+            with self.assertRaises(ValueError):
+                self.device.request("sign_payload", params, "bad-sig")
+        self.device.request("end_signing", {}, "end")
+        with self.assertRaises(ValueError):
+            self.device.request("sign_payload", {"session": result[0]["session"], "kind": "tron", "message": "07" * 32}, "closed")
 
     def test_release_and_open_require_unlock(self):
         self.configured()

@@ -46,7 +46,10 @@ class BootTests(unittest.TestCase):
             self.assertIn("WantedBy=sysinit.target", unit)
             self.assertNotIn("network-online.target", unit)
         main = (ROOT / "image/satooshi.service").read_text()
-        self.assertIn("After=satooshi-usb.service satooshi-splash.service", main)
+        self.assertIn("DefaultDependencies=no", main)
+        self.assertIn("WantedBy=sysinit.target", main)
+        self.assertIn("After=local-fs.target systemd-modules-load.service satooshi-usb.service", main)
+        self.assertNotIn("After=satooshi-splash.service", main)
 
     def test_splash_close_keeps_pixels_without_poweroff_command(self):
         oled = OLED.__new__(OLED)

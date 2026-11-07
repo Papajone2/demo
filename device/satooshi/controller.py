@@ -33,6 +33,8 @@ class Controller:
         self.connected = False
         self.welcome_seen = self.vault.directory.joinpath("welcome-seen").exists()
         self.recovered_words = []
+        self.signing_session = None
+        self.boot_ready_seconds = round(time.clock_gettime(time.CLOCK_BOOTTIME), 2) if hasattr(time, "CLOCK_BOOTTIME") else None
 
     def status(self):
         meta = self.vault.metadata() if self.vault.exists else {}
@@ -45,7 +47,8 @@ class Controller:
                     previewCapabilities=["send", "swap", "receive", "message"],
                     controls="left-right-hold", confirmHoldMs=2000, prototype=True,
                     autoPair=True, paired=self.connected,
-                    approvalCapabilities=["browser-transfer", "temporary-browser-signing"])
+                    bootReadySeconds=self.boot_ready_seconds,
+                    approvalCapabilities=["device-blind-signing-v1"])
 
     def changed(self):
         self.emit({"event": "state", "data": self.status()})
@@ -56,6 +59,7 @@ class Controller:
         self.pending = None
 
     def cancel(self):
+        self.signing_session = None
         self.result({"cancelled": True})
         # During setup the unsaved wallet must be forgotten, not left as an unlocked signer.
         if not self.vault.exists:
@@ -78,13 +82,35 @@ class Controller:
                 self.vault.atomic_write(self.vault.directory / "welcome-seen", b"1")
                 self.welcome_seen = True
             return {**self.status(), "autoPair": True, "paired": True,
-                    "approvalCapabilities": ["browser-transfer"]}
+                    "approvalCapabilities": ["device-blind-signing-v1"]}
         if method == "cancel":
             self.cancel()
             return self.status()
         if method == "lock":
             self.lock()
             return self.status()
+        if method == "sign_payload":
+            from .signing import sign
+            self.require_unlock()
+            session = self.signing_session
+            if not session or self.clock() >= session["expires"] or session["remaining"] <= 0:
+                self.signing_session = None
+                raise ValueError("Approve the payment on the device first")
+            if set(params) != {"session", "kind", "message"} or not secrets.compare_digest(str(params["session"]), session["token"]) or params["kind"] != session["kind"]:
+                raise ValueError("Signing approval does not match this request")
+            encoded = params["message"]
+            if not isinstance(encoded, str) or len(encoded) > 65536 or len(encoded) % 2:
+                raise ValueError("Invalid signing message")
+            try:
+                message = bytes.fromhex(encoded)
+            except ValueError:
+                raise ValueError("Invalid signing message") from None
+            session["remaining"] -= 1
+            self.last_action = self.clock()
+            return sign(self.entropy, session["kind"], message)
+        if method == "end_signing":
+            self.signing_session = None
+            return {"closed": True}
         if self.pending is not None or self.phase != "home":
             raise ValueError("Complete or cancel the current action on the device")
         if method == "setup":
@@ -122,8 +148,15 @@ class Controller:
             self.require_unlock()
             self.start_review(Rehearsal(params), request_id, "browser_review")
         elif method == "approve_and_release":
+            raise ValueError("Seed export is disabled; install the matching website")
+        elif method == "approve_signing":
+            from .signing import KINDS
             self.require_unlock()
-            self.start_review(Rehearsal(params), request_id, "browser_review_release")
+            if set(params) != {"review", "kind"} or params["kind"] not in KINDS:
+                raise ValueError("Unsupported signing request")
+            self.signing_session = None
+            self.signing_kind = params["kind"]
+            self.start_review(Rehearsal(params["review"]), request_id, "browser_review_release")
         elif method == "open_wallet":
             self.require_unlock()
             if params:
@@ -314,9 +347,8 @@ class Controller:
             if key == "a":
                 self.cancel()
             elif key == "b":
-                # This is explicitly disclosed on the website; the USB result
-                # is never logged by firmware. This is not offline signing.
-                self.result({"entropy": self.entropy.hex(), "address": address(self.entropy)})
+                from .signing import public_keys
+                self.result({"publicKeys": public_keys(self.entropy), "address": address(self.entropy)})
                 self.phase = "home"
         elif phase in ("review", "preview_review", "browser_review", "browser_review_release"):
             last = len(self.review.pages()) - 1
@@ -328,7 +360,10 @@ class Controller:
             elif phase in ("browser_review", "browser_review_release") and key == "b" and all(i in self.visited for i in range(last)):
                 result = {"approved": True, "signing": "browser", "operation": self.review.operation}
                 if phase == "browser_review_release":
-                    result.update(entropy=self.entropy.hex(), address=address(self.entropy))
+                    token = secrets.token_hex(32)
+                    self.signing_session = {"token": token, "kind": self.signing_kind,
+                                            "expires": self.clock() + 120, "remaining": 128}
+                    result.update(signing="device", session=token, address=address(self.entropy))
                 self.result(result)
                 self.review, self.phase, self.step = None, "success", 0
                 self.success_preview, self.success_until = False, self.clock() + 2

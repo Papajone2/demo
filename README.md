@@ -7,15 +7,13 @@ tamper resistance, verified boot, or protection against a compromised OS.
 
 ## What is implemented
 
-The main web app's `/dashboard` uses the **Pi-generated recovery phrase** for
-addresses and real browser-side signing. Opening the wallet and each payment
-require physical approval before seed entropy is released over USB. Only public
-account metadata is deliberately persisted in the browser. Signing material is
-kept in a separate temporary runtime session and cleared after success/failure.
-JavaScript erasure is best effort: a compromised computer can copy the seed,
-so device-only spending is not a security guarantee. This is not offline
-hardware signing. Web setup and Terms require acknowledgment. The device shows
-ordinary Open/Review/Confirm prompts, not false offline-signature claims.
+The main web app's `/dashboard` uses **on-device signing**. Opening the wallet
+returns public keys only. Recovery entropy and private keys are never exported.
+The device signs fixed-path account-zero requests after physical payment review.
+This is **blind signing**: display labels come from the browser and are not
+independently decoded from signed payloads. A compromised browser can request a
+malicious payment. Setup and Terms disclose this limitation on the website;
+the OLED keeps ordinary Open/Review/Confirm prompts.
 Root browser-wallet routes, vault, addresses and funds remain separate and
 unchanged. No migration is automatic. Transfer coverage is the existing browser
 transaction engine's actual support, not every priced asset.
@@ -23,8 +21,11 @@ transaction engine's actual support, not every priced asset.
 `approve_browser_transfer` requires an unlocked, configured device and local
 review of amount, full address, fee and final summary. It returns an approval,
 not a signature or a fabricated transaction hash. The browser signs after this
-approval. The older `preview_review` remains simulation-only; genuine native
-ETH signing remains a separate firmware capability.
+approval. It is retained for legacy compatibility only. The active dashboard
+uses `approve_signing` followed by `sign_payload`; the latter returns real
+secp256k1, Ed25519, extended Ed25519 or Schnorrkel signatures. The older
+`preview_review` remains simulation-only; decoded native ETH signing remains
+a separate firmware capability.
 
 ### Two-button navigation
 
@@ -40,7 +41,7 @@ The PIN is optional and can contain 1–12 digits; short PINs are substantially
 weaker. Move across 0–9, Done and Delete with taps, and hold right to select.
 Device restore accepts 24 valid BIP39 words entered on the device, never via USB.
 Browser-backed payment review uses clicks through amount/address/fee/summary;
-the final click approves it for the browser to sign.
+the final click authorizes a short-lived on-device signing session.
 
 Legacy native ETH signing and simulated previews still use a final three-second hold.
 Releasing early resets the bar; pressing left cancels the hold. Hold left to
@@ -72,16 +73,24 @@ from real wallet balances and broadcasting. The image artifact includes
 - A separate, keyless browser companion with a Sepolia-first send flow.
 - Regression tests, local terminal simulator, manual image build with checksums.
 
-**Not implemented:** Bitcoin/Solana/TRON or other hardware signing, ERC-20
-contracts, swaps, typed messages, on-device recovery import, multiple accounts,
-firmware updates, secure-element storage, integration into the existing web
-wallet's Send/Swap signer, audited production security, or physical boot validation.
+The dashboard adapters cover the existing EVM transfers/contracts, Solana
+transfers/swaps, Bitcoin/Litecoin/Dogecoin/Bitcoin Cash, TRON transfers/contracts,
+XRP, Stellar, Aptos, Sui, NEAR, Polkadot and Cardano signing paths.
+Provider access, balances and existing transaction restrictions still apply.
+This does not add transfer support for price-only assets or arbitrary contracts.
+
+**Not implemented:** independently decoded multi-chain review, arbitrary typed
+messages, multiple device accounts, secure firmware updates, secure-element
+storage, audited production security, or physical boot validation.
 The browser wallet's existing assets are not migrated and its keys are not used.
 
-PIN export does not exist. `open_wallet` releases seed entropy only after local
-click approval; `approve_and_release` requires all payment review pages and the
-final local confirmation. Both require a configured, unlocked device. Generic
-messages cannot authorize a payment or release a seed. Never log USB result
+PIN/seed export does not exist. `open_wallet` returns public keys after local
+click approval; the former `approve_and_release` command now fails explicitly.
+`approve_signing` requires every payment page and the final local confirmation.
+Its session is restricted to one signing family, expires after 120 seconds,
+permits at most 128 signatures (multi-input transactions), and closes on
+lock/cancel or expiry. The website also closes its session on disconnect.
+Generic messages cannot authorize a payment. Never log USB result
 payloads or use funded recovery phrases in screenshots or automated tests.
 
 ## Build an image in GitHub

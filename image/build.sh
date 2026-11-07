@@ -53,6 +53,8 @@ exit 101
 POLICY
 chmod 755 "$ROOT/usr/sbin/policy-rc.d"
 mkdir -p "$ROOT/opt/satooshi/device" "$ROOT/opt/satooshi/image"
+mkdir -p "$ROOT/opt/satooshi/lib"
+cp "$SOURCE/native-sr25519/target/arm-unknown-linux-gnueabihf/release/libsatooshi_sr25519.so" "$ROOT/opt/satooshi/lib/"
 cp -a "$SOURCE/device/satooshi" "$ROOT/opt/satooshi/device/"
 printf 'VERSION = "0.3.0"\nBUILD_COMMIT = "%s"\n' "$COMMIT" \
   > "$ROOT/opt/satooshi/device/satooshi/build_info.py"
@@ -106,6 +108,10 @@ cat >> "$ROOT/boot/firmware/config.txt" <<'CONFIG'
 dtparam=i2c_arm=on
 dtoverlay=dwc2,dr_mode=peripheral
 enable_uart=0
+dtoverlay=disable-wifi
+dtoverlay=disable-bt
+boot_delay=0
+disable_splash=1
 CONFIG
 printf 'dwc2\nlibcomposite\ni2c-dev\n' > "$ROOT/etc/modules-load.d/satooshi.conf"
 # No user setup wizard, SSH, radio networking or host-facing serial console.
@@ -116,6 +122,9 @@ chroot "$ROOT" /usr/bin/qemu-arm-static /bin/systemctl mask userconfig.service u
   ssh.service ssh.socket NetworkManager.service NetworkManager-wait-online.service \
   systemd-networkd-wait-online.service wpa_supplicant.service bluetooth.service \
   ModemManager.service hciuart.service avahi-daemon.service
+chroot "$ROOT" /usr/bin/qemu-arm-static /bin/systemctl mask \
+  dphys-swapfile.service triggerhappy.service keyboard-setup.service console-setup.service \
+  systemd-rfkill.service systemd-rfkill.socket
 # Keep OS, entropy, udev and filesystem safety services; remove only unused
 # background maintenance from this offline appliance's critical boot workload.
 chroot "$ROOT" /usr/bin/qemu-arm-static /bin/systemctl disable \
@@ -133,6 +142,9 @@ find "$ROOT/var/log" -type f -exec truncate -s 0 {} \;
 chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/env \
   PYTHONPATH=/opt/satooshi/vendor:/opt/satooshi/device PYTHONDONTWRITEBYTECODE=1 \
   /usr/bin/python3 -c 'from satooshi.evm import address; from satooshi.vault import Vault; assert address(bytes(32)) == "0xF278cF59F82eDcf871d630F28EcC8056f25C1cdb"'
+chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/env \
+  PYTHONPATH=/opt/satooshi/vendor:/opt/satooshi/device PYTHONDONTWRITEBYTECODE=1 \
+  /usr/bin/python3 -c 'from satooshi.signing import public_keys, sign; p = public_keys(bytes(32)); assert len(p["polkadot"]) == 64; assert len(sign(bytes(32), "polkadot", b"image-preflight")["signature"]) == 128'
 chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/env \
   PYTHONPATH=/opt/satooshi/vendor:/opt/satooshi/device PYTHONDONTWRITEBYTECODE=1 \
   /usr/bin/python3 -c 'from satooshi.screen import Screen; from satooshi.controller import Controller; assert Screen().render(("SATOOSHI START", [], ""), phase="home").size == (128,64)'

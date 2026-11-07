@@ -17,11 +17,21 @@ jobs:
           python-version: "3.11"
       - name: Run regression tests before building
         run: |
+          cargo build --locked --release --manifest-path native-sr25519/Cargo.toml
+          export SATOOSHI_SR25519_LIB="$PWD/native-sr25519/target/release/libsatooshi_sr25519.so"
           python -m pip install -r requirements.txt
           PYTHONPATH=device python -m unittest discover -s tests -v
           node --test tests/serial.test.mjs
           bash -n image/build.sh image/usb-gadget.sh
           PYTHONPATH=device python docs/render_screens.py
+      - name: Build ARMv6 Polkadot signing bridge
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf
+          rustup target add arm-unknown-linux-gnueabihf
+          CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc \
+          RUSTFLAGS="-C target-cpu=arm1176jzf-s -C link-arg=-march=armv6zk -C link-arg=-mfpu=vfp -C link-arg=-mfloat-abi=hard" \
+            cargo build --locked --release --target arm-unknown-linux-gnueabihf --manifest-path native-sr25519/Cargo.toml
       - name: Install privileged image build tools
         run: |
           sudo apt-get update

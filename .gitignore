@@ -1,3 +1,4 @@
+native-sr25519/target/
 __pycache__/
 *.pyc
 .venv/

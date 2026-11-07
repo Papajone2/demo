@@ -26,7 +26,7 @@
     <h1>Set up and sign with the device<br><em>in your hand.</em></h1>
     <p class="lede">This page talks to your Raspberry Pi signer over USB. It never sees your recovery words or PIN. No transaction is sent to the blockchain until you press broadcast.</p>
     <div class="warn" role="note">
-      <strong>Private prototype.</strong> Satooshi is not an audited commercial wallet. The main /dashboard wallet uses your Pi-generated seed temporarily in the browser after physical approval; it is not offline signing. A compromised computer can copy it. This legacy companion does not migrate or overwrite your browser wallet.
+      <strong>Private prototype.</strong> Satooshi is not an audited commercial wallet. New /dashboard firmware signs on the Pi without exporting its seed. Review details are supplied by the browser: this is blind signing, not independently verified transaction review. This legacy companion does not migrate or overwrite your browser wallet.
     </div>
   </section>
 

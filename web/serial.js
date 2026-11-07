@@ -48,7 +48,7 @@ export class SatooshiDevice extends EventTarget {
   async request(method, params = {}, id = crypto.randomUUID()) {
     if (!this.writer) throw new Error('Connect your device first.');
     const response = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('Device did not respond. Check the USB data cable.')); }, 12000);
+      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('Device did not respond. Check the USB data cable.')); }, 60000);
       this.pending.set(id, { resolve, reject, timer });
     });
     try {

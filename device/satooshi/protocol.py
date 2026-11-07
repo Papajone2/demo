@@ -2,7 +2,7 @@
 import json
 from collections import deque
 
-MAX_FRAME = 4096
+MAX_FRAME = 70000  # Bounded Solana message payloads, never private keys.
 
 
 class Protocol:
