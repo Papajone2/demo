@@ -15,6 +15,10 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install -r requirements.txt
+      - name: Build native signing dependency for host tests
+        run: |
+          cargo build --locked --release --manifest-path native-sr25519/Cargo.toml
+          echo "SATOOSHI_SR25519_LIB=$PWD/native-sr25519/target/release/libsatooshi_sr25519.so" >> "$GITHUB_ENV"
       - run: PYTHONPATH=device python -m unittest discover -s tests -v
       - run: node --test tests/serial.test.mjs
       - run: bash -n image/build.sh image/usb-gadget.sh
