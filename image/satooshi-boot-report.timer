@@ -1,0 +1,10 @@
+[Unit]
+Description=Collect Satooshi timing after startup without delaying the wallet
+
+[Timer]
+OnBootSec=60s
+AccuracySec=1s
+Unit=satooshi-boot-report.service
+
+[Install]
+WantedBy=timers.target

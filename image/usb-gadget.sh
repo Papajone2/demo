@@ -5,15 +5,15 @@ STAGE=starting
 report() {
   local result=$?
   # Only fixed startup state: never entropy, PINs, addresses, messages or keys.
-  if mountpoint -q /boot/firmware; then
-    if ! {
+  # RAM-only on the USB critical path. The delayed reporter copies public
+  # diagnostics to the SD card after startup, without waiting for its FAT mount.
+  if ! {
       printf 'Satooshi Pro USB startup\nstage=%s\nexit_code=%s\n' "$STAGE" "$result"
       if [[ -r "$G/UDC" ]]; then printf 'bound_controller=%s\n' "$(cat "$G/UDC")"; fi
       if [[ -c /dev/ttyGS0 ]]; then echo 'serial_node=present'; else echo 'serial_node=absent'; fi
       echo 'This report does not establish that a computer detected the device.'
-    } > /boot/firmware/satooshi-usb-status.txt; then
-      echo 'Could not write the non-secret USB startup report.' >&2
-    fi
+    } > /run/satooshi-usb-status.txt; then
+    echo 'Could not write the non-secret USB startup report.' >&2
   fi
 }
 trap report EXIT

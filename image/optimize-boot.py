@@ -9,8 +9,29 @@ def optimize(root):
     boot = root / "boot/firmware"
     config = boot / "config.txt"
     text = config.read_text()
-    # Keep firmware parsing local to the known Zero W; no Pi 4/5 EEPROM knobs.
-    text += "\n# Satooshi fixed I2C OLED; no CSI/DSI auto-probes.\n[all]\ncamera_auto_detect=0\ndisplay_auto_detect=0\n"
+    # Fixed I2C OLED: neither SDL, HDMI/KMS, camera nor audio is used. Do not
+    # apply newer-board EEPROM/overclock advice to the original ARMv6 Zero W.
+    text = re.sub(r"\n# BEGIN SATOOSHI HEADLESS\n.*?# END SATOOSHI HEADLESS\n", "\n", text, flags=re.S)
+    text = re.sub(r"^([ \t]*dtoverlay=vc4-(?:kms|fkms)-v3d(?:,[^\n]*)?)$",
+                  r"# Satooshi I2C-only display: \1", text, flags=re.M)
+    profile = ("\n# BEGIN SATOOSHI HEADLESS\n[all]\ncamera_auto_detect=0\n"
+               "display_auto_detect=0\ndtparam=audio=off\nhdmi_ignore_hotplug=1\n"
+               "max_framebuffers=0\n")
+    # gpu_mem=16 selects cut-down VideoCore firmware on the original Zero W.
+    # Keep the stock allocation if either matching file or selection is uncertain.
+    cutdown = all((boot / name).is_file() and (boot / name).stat().st_size > 0
+                  for name in ("start_cd.elf", "fixup_cd.dat"))
+    custom_firmware = re.search(r"^\s*(start_file|fixup_file|start_x)\s*=", text, re.M)
+    if cutdown and not custom_firmware:
+        profile += "gpu_mem=16\n"
+    text += profile + "# END SATOOSHI HEADLESS\n"
+    # Avoid painting an unused HDMI console; retain rootwait, fsck, entropy and
+    # every unrelated boot argument. Kernel diagnostics remain in the journal.
+    cmdline_path = boot / "cmdline.txt"
+    arguments = cmdline_path.read_text().split()
+    arguments = [arg for arg in arguments if arg != "console=tty1"
+                 and arg != "quiet" and not re.fullmatch(r"loglevel=\d+", arg)]
+    cmdline_path.write_text(" ".join(arguments + ["quiet", "loglevel=3"]) + "\n")
     # Only bypass initramfs with exact installed ARMv6 kernel evidence. Absence
     # of lsmod entries is NOT proof of built-in drivers.
     versions = sorted(p.name for p in (root / "lib/modules").glob("*") if p.name.endswith("-rpi-v6"))
@@ -33,7 +54,7 @@ def optimize(root):
             # kernel uncertain: preserve boot compatibility, not speculative speed.
             ambiguous = re.search(r"^\s*(include\s|kernel\s*=|os_prefix\s*=)", text, re.M)
             if required <= flags and sd_driver and sd_ext4 and "rootfstype=ext4" in cmdline and not ambiguous:
-                text = re.sub(r"^(\s*initramfs\s+.*)$", r"# Satooshi bypass: \1", text, flags=re.M)
+                text = re.sub(r"^([ \t]*initramfs[ \t]+[^\n]*)$", r"# Satooshi bypass: \1", text, flags=re.M)
                 text += "\n[all]\nauto_initramfs=0\n"
                 reason = f"bypassed: {version} proves built-in SD/ext4/devtmpfs"
             else:

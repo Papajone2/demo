@@ -1,0 +1,15 @@
+[Unit]
+Description=Satooshi public boot timing report (delayed diagnostics)
+After=local-fs.target systemd-journald.service
+RequiresMountsFor=/boot/firmware
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh /opt/satooshi/image/boot-report.sh
+TimeoutStartSec=15
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/boot/firmware

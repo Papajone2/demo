@@ -59,7 +59,7 @@ cp -a "$SOURCE/device/satooshi" "$ROOT/opt/satooshi/device/"
 printf 'VERSION = "0.3.0"\nBUILD_COMMIT = "%s"\n' "$COMMIT" \
   > "$ROOT/opt/satooshi/device/satooshi/build_info.py"
 find "$ROOT/opt/satooshi" -type d -name __pycache__ -prune -exec rm -rf {} +
-cp "$SOURCE/image/"{usb-gadget.sh,satooshi.service,satooshi-usb.service,satooshi-splash.service} "$ROOT/opt/satooshi/image/"
+cp "$SOURCE/image/"{usb-gadget.sh,boot-report.sh,satooshi.service,satooshi-usb.service,satooshi-splash.service,satooshi-boot-report.service,satooshi-boot-report.timer} "$ROOT/opt/satooshi/image/"
 cp "$SOURCE/requirements-core.txt" "$ROOT/opt/satooshi/"
 chmod 755 "$ROOT/opt/satooshi/image/usb-gadget.sh"
 
@@ -82,7 +82,8 @@ id satooshi >/dev/null 2>&1 || useradd --system --home-dir /var/lib/satooshi \
   --shell /usr/sbin/nologin --groups gpio,i2c,dialout satooshi
 install -d -o satooshi -g satooshi -m 700 /var/lib/satooshi
 cp /opt/satooshi/image/satooshi*.service /etc/systemd/system/
-systemctl enable satooshi-splash.service satooshi-usb.service satooshi.service
+cp /opt/satooshi/image/satooshi*.timer /etc/systemd/system/
+systemctl enable satooshi-splash.service satooshi-usb.service satooshi.service satooshi-boot-report.timer
 systemctl disable ssh.service ssh.socket avahi-daemon.service bluetooth.service \
   serial-getty@ttyGS0.service getty@tty1.service 2>/dev/null || true
 passwd -l root
@@ -95,10 +96,11 @@ chroot "$ROOT" /usr/bin/qemu-arm-static /bin/bash -eux /tmp/satooshi-provision.s
 # Fail before packaging if provisioning did not install the boot services/user.
 chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/id satooshi
 chroot "$ROOT" /usr/bin/qemu-arm-static /bin/systemctl is-enabled \
-  satooshi-splash.service satooshi-usb.service satooshi.service
+  satooshi-splash.service satooshi-usb.service satooshi.service satooshi-boot-report.timer
 chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/systemd-analyze verify \
   /etc/systemd/system/satooshi-splash.service \
-  /etc/systemd/system/satooshi-usb.service /etc/systemd/system/satooshi.service
+  /etc/systemd/system/satooshi-usb.service /etc/systemd/system/satooshi.service \
+  /etc/systemd/system/satooshi-boot-report.service /etc/systemd/system/satooshi-boot-report.timer
 [[ -f "$ROOT/opt/satooshi/vendor/ecdsa/__init__.py" ]]
 
 cat >> "$ROOT/boot/firmware/config.txt" <<'CONFIG'

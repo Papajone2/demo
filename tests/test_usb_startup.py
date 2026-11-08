@@ -19,6 +19,9 @@ class UsbStartupTests(unittest.TestCase):
         (self.controllers / "test.usb").mkdir()
         self.boot = self.root / "boot"
         self.boot.mkdir()
+        self.report = self.root / "usb-status.txt"
+        identity = self.root / "machine-id"
+        identity.write_text("11111111111111111111111111111111\n")
         self.tty = self.root / "ttyGS0"
         self.tty.touch()
         source = (pathlib.Path(__file__).parents[1] / "image/usb-gadget.sh").read_text()
@@ -26,6 +29,8 @@ class UsbStartupTests(unittest.TestCase):
         source = source.replace("/sys/kernel/config", str(self.root / "configfs"))
         source = source.replace("/sys/class/udc", str(self.controllers))
         source = source.replace("/boot/firmware", str(self.boot))
+        source = source.replace("/run/satooshi-usb-status.txt", str(self.report))
+        source = source.replace("/etc/machine-id", str(identity))
         source = source.replace("/dev/ttyGS0", str(self.tty)).replace("[[ -c ", "[[ -f ")
         # Never mount, change ownership or load modules on the test host.
         mocks = "\nmodprobe(){ :; }; mountpoint(){ return 0; }; sleep(){ :; }; chown(){ :; }; chmod(){ :; };\n"
@@ -41,7 +46,9 @@ class UsbStartupTests(unittest.TestCase):
         self.assertEqual((self.gadget / "UDC").read_text().strip(), "test.usb")
         self.assertEqual((self.gadget / "idVendor").read_text().strip(), "0x1d6b")
         self.assertTrue((self.gadget / "configs/c.1/acm.usb0").is_symlink())
-        report = (self.boot / "satooshi-usb-status.txt").read_text()
+        report = self.report.read_text()
+        self.assertFalse((self.boot / "satooshi-usb-status.txt").exists(),
+                         "USB readiness must not wait for an SD/FAT diagnostic write")
         self.assertIn("stage=serial_ready", report)
         self.assertIn("exit_code=0", report)
         self.assertIn("serial_node=present", report)
@@ -58,7 +65,7 @@ class UsbStartupTests(unittest.TestCase):
         self.tty.unlink()
         result = self.run_script()
         self.assertEqual(result.returncode, 1, result.stderr)
-        report = (self.boot / "satooshi-usb-status.txt").read_text()
+        report = self.report.read_text()
         self.assertIn("stage=wait_for_controller", report)
         self.assertIn("exit_code=1", report)
         self.assertIn("serial_node=absent", report)

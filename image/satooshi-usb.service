@@ -1,9 +1,9 @@
 [Unit]
 Description=Satooshi Pro USB serial gadget (no networking or shell)
 DefaultDependencies=no
-Wants=local-fs.target systemd-modules-load.service
-After=local-fs.target systemd-modules-load.service
-Before=sysinit.target satooshi.service shutdown.target
+Wants=systemd-remount-fs.service systemd-modules-load.service
+After=systemd-remount-fs.service systemd-modules-load.service
+Before=sysinit.target shutdown.target
 Conflicts=shutdown.target
 StartLimitIntervalSec=180
 StartLimitBurst=6

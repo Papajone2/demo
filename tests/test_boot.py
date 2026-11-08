@@ -75,12 +75,27 @@ class BootTests(unittest.TestCase):
         main = (ROOT / "image/satooshi.service").read_text()
         self.assertIn("DefaultDependencies=no", main)
         self.assertIn("WantedBy=sysinit.target", main)
-        self.assertIn("After=local-fs.target systemd-modules-load.service\n", main)
+        self.assertIn("After=systemd-remount-fs.service systemd-modules-load.service\n", main)
+        self.assertIn("RequiresMountsFor=/opt/satooshi/device /var/lib/satooshi", main)
+        self.assertNotIn("Wants=local-fs.target", main)
         self.assertNotIn("After=local-fs.target systemd-modules-load.service satooshi-usb.service", main)
         self.assertNotIn("After=satooshi-splash.service", main)
         splash_unit = (ROOT / "image/satooshi-splash.service").read_text()
         self.assertNotIn("local-fs.target", splash_unit)
         self.assertIn("RequiresMountsFor=/opt/satooshi/device", splash_unit)
+        usb = (ROOT / "image/satooshi-usb.service").read_text()
+        self.assertNotIn("satooshi.service", usb)
+        self.assertNotIn("local-fs.target", usb)
+        self.assertIn("systemd-remount-fs.service", usb)
+
+    def test_boot_report_is_delayed_and_only_collects_public_stages(self):
+        timer = (ROOT / "image/satooshi-boot-report.timer").read_text()
+        report = (ROOT / "image/boot-report.sh").read_text()
+        self.assertIn("OnBootSec=60s", timer)
+        self.assertIn("SATOOSHI_BOOT stage=", report)
+        self.assertIn("not since power-on", report)
+        for sensitive in ("/var/lib/satooshi", "vault.json", "/etc/machine-id"):
+            self.assertNotIn(sensitive, report)
 
     def test_boot_markers_accept_only_public_fixed_stages(self):
         from satooshi.boot_timing import mark
@@ -129,6 +144,49 @@ class BootConfigTests(unittest.TestCase):
     def test_keeps_initramfs_without_positive_kernel_evidence(self):
         self.assertTrue(self.module.optimize(self.root).startswith("kept:"))
         self.assertNotIn("auto_initramfs=0", (self.boot / "config.txt").read_text())
+
+    def test_headless_oled_profile_preserves_storage_and_randomness(self):
+        (self.boot / "config.txt").write_text("[all]\n\ndtoverlay=vc4-kms-v3d\n")
+        original = "console=tty1 root=PARTUUID=example-02 rootfstype=ext4 rootwait fsck.repair=yes\n"
+        (self.boot / "cmdline.txt").write_text(original)
+        self.module.optimize(self.root)
+        config = (self.boot / "config.txt").read_text()
+        self.assertIn("# Satooshi I2C-only display: dtoverlay=vc4-kms-v3d", config)
+        self.assertFalse(any(line.lstrip().startswith("dtoverlay=vc4-") for line in config.splitlines()))
+        self.assertIn("max_framebuffers=0", config)
+        self.assertIn("dtparam=audio=off", config)
+        self.assertNotIn("gpu_mem=16", config)
+        arguments = (self.boot / "cmdline.txt").read_text().split()
+        for retained in ("root=PARTUUID=example-02", "rootfstype=ext4", "rootwait", "fsck.repair=yes"):
+            self.assertIn(retained, arguments)
+        self.assertNotIn("console=tty1", arguments)
+        self.assertIn("quiet", arguments)
+        self.assertNotIn("random.trust_cpu=on", arguments)
+
+    def test_cutdown_firmware_requires_matching_files_and_no_override(self):
+        for name in ("start_cd.elf", "fixup_cd.dat"):
+            (self.boot / name).write_bytes(b"firmware-fixture")
+        self.module.optimize(self.root)
+        self.assertIn("gpu_mem=16", (self.boot / "config.txt").read_text())
+        (self.boot / "config.txt").write_text("[all]\nstart_file=custom.elf\n")
+        self.module.optimize(self.root)
+        self.assertNotIn("gpu_mem=16", (self.boot / "config.txt").read_text())
+
+    def test_headless_profile_and_console_flags_are_idempotent(self):
+        self.module.optimize(self.root)
+        self.module.optimize(self.root)
+        self.assertEqual((self.boot / "config.txt").read_text().count("# BEGIN SATOOSHI HEADLESS"), 1)
+        arguments = (self.boot / "cmdline.txt").read_text().split()
+        self.assertEqual(arguments.count("quiet"), 1)
+        self.assertEqual(arguments.count("loglevel=3"), 1)
+
+    def test_explicit_initramfs_line_is_commented_even_after_blank_lines(self):
+        self.kernel.write_text("\n".join(self.flags))
+        (self.boot / "config.txt").write_text("[all]\n\ninitramfs initramfs.img followkernel\n")
+        self.module.optimize(self.root)
+        config = (self.boot / "config.txt").read_text()
+        self.assertFalse(any(line.lstrip().startswith("initramfs ") for line in config.splitlines()))
+        self.assertIn("# Satooshi bypass: initramfs initramfs.img followkernel", config)
 
     def test_bypasses_only_with_all_builtin_root_requirements(self):
         self.kernel.write_text("\n".join(self.flags))
