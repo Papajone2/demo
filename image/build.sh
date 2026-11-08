@@ -142,13 +142,26 @@ rm -f "$ROOT/var/lib/dbus/machine-id" "$ROOT/var/lib/systemd/random-seed"
 find "$ROOT/var/log" -type f -exec truncate -s 0 {} \;
 python3 "$SOURCE/image/optimize-boot.py" "$ROOT"
 
+# Optional native ARMv6 public-only splash. No libc/ARMv7 startup objects:
+# every I/O call goes directly to the ARM EABI kernel. Keep Python fallback.
+if command -v arm-linux-gnueabihf-gcc >/dev/null; then
+  arm-linux-gnueabihf-gcc -Os -march=armv6zk -marm -mfloat-abi=soft \
+    -nostdlib -static -fno-pie -no-pie -fno-builtin -fno-stack-protector \
+    -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-tree-loop-distribute-patterns \
+    -Wl,-e,_start -Wl,--build-id=none \
+    "$SOURCE/image/early-splash.c" -o "$ROOT/opt/satooshi/image/early-splash"
+  qemu-arm-static "$ROOT/opt/satooshi/image/early-splash" --check
+else
+  echo "ARM cross compiler unavailable; preserving Python early-splash fallback."
+fi
+
 # Compile the real wordmark once, not on the Zero W's critical splash path.
 chroot "$ROOT" /usr/bin/qemu-arm-static /usr/bin/env \
   PYTHONPATH=/opt/satooshi/device /usr/bin/python3 -c '
 from pathlib import Path
 from satooshi.screen import Screen
 from satooshi.oled import OLED
-frame = OLED.frame_bytes(Screen().render(("SATOOSHI LOGO", [], ""), phase="home"))
+frame = OLED.frame_bytes(Screen().render(("SATOOSHI LOGO", [], ""), phase="loading"))
 assert len(frame) == 1024 and any(frame)
 Path("/opt/satooshi/device/satooshi/assets/splash.bin").write_bytes(frame)
 '

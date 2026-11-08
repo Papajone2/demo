@@ -385,7 +385,7 @@ class DeviceTests(unittest.TestCase):
         second = Controller(Vault(self.tmp.name), self.events.append)
         self.assertTrue(second.status()["locked"])
         second.request("unlock", {}, "unlock")
-        second.button("both")
+        self.assertEqual(second.phase, "pin")
         self.device = second
         self.enter_pin("1234")
         self.assertEqual(address(second.entropy), ADDRESS)

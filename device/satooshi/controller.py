@@ -35,6 +35,10 @@ class Controller:
         self.recovered_words = []
         self.signing_session = None
         self.boot_ready_seconds = round(time.clock_gettime(time.CLOCK_BOOTTIME), 2) if hasattr(time, "CLOCK_BOOTTIME") else None
+        # RAM never restores an unlocked signer after power loss. A protected
+        # vault prompts locally at boot, before any browser is connected.
+        if self.vault.exists and self.vault.metadata().get("pin"):
+            self._begin_pin("unlock")
 
     def status(self):
         meta = self.vault.metadata() if self.vault.exists else {}
@@ -45,7 +49,7 @@ class Controller:
                     pinEnabled=meta.get("pin", False), error=self.error,
                     capabilities=["ethereum-native-eip1559", "sepolia-native-eip1559"],
                     previewCapabilities=["send", "swap", "receive", "message"],
-                    controls="left-right-hold", confirmHoldMs=1000, prototype=True,
+                    controls="left-right-hold", confirmHoldMs=300, prototype=True,
                     autoPair=True, paired=self.connected,
                     bootReadySeconds=self.boot_ready_seconds,
                     approvalCapabilities=["device-blind-signing-v1", "receive-address-v1", "staking-review-v1"])
@@ -111,7 +115,8 @@ class Controller:
         if method == "end_signing":
             self.signing_session = None
             return {"closed": True}
-        if self.pending is not None or self.phase != "home":
+        boot_pin = self.phase == "pin" and self.pin_mode == "unlock" and method == "unlock"
+        if self.pending is not None or self.phase != "home" and not boot_pin:
             raise ValueError("Complete or cancel the current action on the device")
         if method == "setup":
             if self.vault.exists:
@@ -131,7 +136,8 @@ class Controller:
             if not self.vault.exists:
                 raise ValueError("Set up the device first")
             self.pending = request_id
-            self.phase = "unlock_confirm"
+            if self.phase != "pin" or self.pin_mode != "unlock":
+                self.phase = "unlock_confirm"
         elif method == "get_address":
             self.require_unlock()
             if params:
@@ -421,7 +427,7 @@ class Controller:
             if right and not left:
                 if self.hold_started is None:
                     self.hold_started = self.clock()
-                self.hold_progress = min(1, self.clock() - self.hold_started)
+                self.hold_progress = min(1, (self.clock() - self.hold_started) / 0.3)
                 self.last_action = self.clock()
             else:
                 self.hold_started, self.hold_progress = None, 0
@@ -440,7 +446,7 @@ class Controller:
             return
         if self.hold_started is None:
             self.hold_started = self.clock()
-        self.hold_progress = min(1, self.clock() - self.hold_started)
+        self.hold_progress = min(1, (self.clock() - self.hold_started) / 0.3)
         self.last_action = self.clock()
         if self.hold_progress < 1:
             return

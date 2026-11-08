@@ -45,8 +45,8 @@ class Bonnet:
             # Left/right only: a deliberate right hold selects/confirms.
             # Simultaneous presses are ignored so an accidental chord cannot sign.
             key = None if self.suppress_release or len(self.pressed) == 2 else (
-                "both" if "b" in self.pressed and held >= 1 else
-                "cancel" if "a" in self.pressed and held >= 1 else next(iter(self.pressed)))
+                "both" if "b" in self.pressed and held >= 0.3 else
+                "cancel" if "a" in self.pressed and held >= 0.3 else next(iter(self.pressed)))
             self.pressed = set()
             self.press_started = None
             self.suppress_release = False

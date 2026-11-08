@@ -18,7 +18,7 @@ def run():
     args = parser.parse_args()
     os.umask(0o077)
     hardware = Bonnet()
-    hardware.render(("SATOOSHI LOGO", [], ""))
+    hardware.render(("SATOOSHI LOGO", [], ""), phase="loading")
     # Show the public logo before importing signing, KDF and vault libraries.
     # Secure entropy initialization remains intact; it is never bypassed for speed.
     from .controller import Controller

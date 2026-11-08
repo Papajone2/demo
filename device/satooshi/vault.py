@@ -4,9 +4,6 @@ import json
 import os
 from pathlib import Path
 
-from cryptography.exceptions import InvalidTag
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 AAD = b"satooshi-pro:vault:1"
 
@@ -61,12 +58,14 @@ class Vault:
 
     def _key(self, pin, salt):
         if pin is not None:
+            from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
             if not (pin.isascii() and pin.isdigit() and 1 <= len(pin) <= 12):
                 raise ValueError("PIN must contain 1–12 digits")
             return Scrypt(salt=salt, length=32, n=2**14, r=8, p=1).derive(pin.encode("ascii"))
         return self.key_path.read_bytes()
 
     def create(self, entropy, pin):
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
         if self.exists:
             raise ValueError("A wallet already exists; reset must be confirmed on the device")
         if len(entropy) != 32:
@@ -80,6 +79,8 @@ class Vault:
         self.atomic_write(self.path, json.dumps(data).encode())
 
     def unlock(self, pin=None):
+        from cryptography.exceptions import InvalidTag
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
         data = self.metadata()
         if data["pin"]:
             # Persist a charged attempt BEFORE validation, including interrupted attempts.

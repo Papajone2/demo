@@ -6,7 +6,6 @@ import hashlib
 import re
 from decimal import Decimal
 
-from ecdsa import SECP256k1, SigningKey, VerifyingKey, util
 from embit import bip32
 from mnemonic import Mnemonic
 try:
@@ -37,6 +36,7 @@ def checksum_address(raw):
 
 
 def address(entropy):
+    from ecdsa import SECP256k1, SigningKey
     key = SigningKey.from_string(private_key(entropy), curve=SECP256k1)
     return checksum_address(digest(key.verifying_key.to_string())[-20:])
 
@@ -120,6 +120,7 @@ class Transfer:
 
     def sign(self, entropy):
         hashed = digest(b"\x02" + rlp(self.unsigned))
+        from ecdsa import SECP256k1, SigningKey, VerifyingKey, util
         key = SigningKey.from_string(private_key(entropy), curve=SECP256k1, hashfunc=hashlib.sha256)
         signature = key.sign_digest_deterministic(hashed, hashfunc=hashlib.sha256,
                                                   sigencode=util.sigencode_string_canonize)

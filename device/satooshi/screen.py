@@ -54,6 +54,10 @@ class Screen:
         title, body, footer = screen
         image = Image.new("1", (128, 64))
         draw = ImageDraw.Draw(image)
+        if phase == "loading":
+            image.paste(self.wordmark, ((128 - self.wordmark.width) // 2, 10))
+            self.center(draw, "Loading..", 43, self.title)
+            return image
         if phase == "home":
             image.paste(self.wordmark, ((128 - self.wordmark.width) // 2,
                                        8 if title == "SATOOSHI START" else (64 - self.wordmark.height) // 2))
@@ -72,7 +76,7 @@ class Screen:
             self.center(draw, title, 2, self.title)
             self.center(draw, body[0], 22, self.word)
             if phase == "recover":
-                self.hold_bar(image, draw, progress, "Hold right 1s")
+                self.hold_bar(image, draw, progress, "Hold to select")
             else:
                 self.center(draw, footer, 49, self.small)
             self.arrows(draw, pressed)
@@ -92,7 +96,7 @@ class Screen:
             if selected in (10, 11):
                 x, width = (6, 20) if selected == 10 else (88, 29)
                 draw.line((x, 52, x + width, 52), fill=1)
-            self.center(draw, "Hold right 1s", 55, self.small)
+            self.center(draw, "Hold to select", 55, self.small)
             self.arrows(draw, pressed)
             return image
         if phase == "receive_address":
@@ -133,9 +137,9 @@ class Screen:
         if phase in ("browser_review", "browser_review_release"):
             self.buttons(draw, ("Back", "Confirm"), pressed)
         elif progress > 0:
-            self.hold_bar(image, draw, progress, "Hold right 1s")
+            self.hold_bar(image, draw, progress, "Hold to select")
         else:
-            hint = "Hold right 1s" if review_confirmed else "Hold to confirm"
+            hint = "Hold to select" if review_confirmed else "Hold to confirm"
             if simulated:
                 hint = "Preview / hold 1s" if review_confirmed else "Preview / confirm"
             self.center(draw, hint, 56, self.small)

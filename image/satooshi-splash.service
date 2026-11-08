@@ -14,7 +14,7 @@ Group=satooshi
 SupplementaryGroups=i2c
 Environment=PYTHONPATH=/opt/satooshi/device
 Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=/usr/bin/python3 -m satooshi.splash
+ExecStart=/bin/sh -c 'if test -x /opt/satooshi/image/early-splash && /opt/satooshi/image/early-splash; then exit 0; fi; exec /usr/bin/python3 -m satooshi.splash'
 TimeoutStartSec=8
 RemainAfterExit=yes
 NoNewPrivileges=yes
