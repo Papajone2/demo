@@ -31,6 +31,6 @@ trap cleanup EXIT
 cp /usr/bin/qemu-arm-static "$target/usr/bin/qemu-arm-static"
 sudo mount --bind /dev "$target/dev"
 # ARM1176 emulation catches accidental ARMv7/NEON binaries before packaging.
-sudo env QEMU_CPU=arm1176 chroot "$target" /usr/bin/qemu-arm-static \
-  /usr/bin/env PYTHONPATH=/opt/satooshi/device PYTHONDONTWRITEBYTECODE=1 \
+sudo env QEMU_CPU=arm1176 PYTHONPATH=/opt/satooshi/device PYTHONDONTWRITEBYTECODE=1 \
+  chroot "$target" /usr/bin/qemu-arm-static \
   /usr/bin/python3 /opt/satooshi/image/target-smoke.py

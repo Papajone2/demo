@@ -20,7 +20,10 @@ jobs:
             libncurses-dev libssl-dev xz-utils
       - name: Host wallet regression checks
         run: |
-          cargo build --locked --release --manifest-path native-sr25519/Cargo.toml
+          # Exercise the same Rust/Cargo version as the pinned Buildroot toolchain.
+          # Runner defaults are newer and previously hid an edition mismatch.
+          rustup toolchain install 1.82.0 --profile minimal
+          cargo +1.82.0 build --locked --release --manifest-path native-sr25519/Cargo.toml
           python3 -m pip install --break-system-packages -r requirements.txt
           SATOOSHI_SR25519_LIB="$PWD/native-sr25519/target/release/libsatooshi_sr25519.so" \
             PYTHONPATH=device python3 -m unittest discover -s tests -v

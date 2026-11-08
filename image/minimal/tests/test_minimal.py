@@ -17,6 +17,29 @@ def module(name, path):
 
 
 class MinimalTests(unittest.TestCase):
+    def test_arm_smoke_invokes_python_directly_without_binfmt_dependency(self):
+        script = (ROOT / "board/post-build.sh").read_text()
+        self.assertIn('chroot "$target" /usr/bin/qemu-arm-static \\\n  /usr/bin/python3', script)
+        self.assertNotIn("/usr/bin/env PYTHONPATH", script)
+
+    def test_rust_manifest_preflight_rejects_newer_editions_and_msrv(self):
+        check = module("check_rust", ROOT / "check-rust.py").check
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaises(SystemExit):
+                check(temp)
+            path = Path(temp) / "fixture/Cargo.toml"
+            path.parent.mkdir()
+            path.write_text('[package]\nname="fixture"\nversion="1.0.0"\nedition="2021"\nrust-version="1.60"\n')
+            check(temp)
+            path.write_text(path.read_text().replace('edition="2021"', 'edition="2024"'))
+            with self.assertRaises(SystemExit):
+                check(temp)
+            path.write_text('[package]\nname="fixture"\nversion="1.0.0"\nrust-version="1.85"\n')
+            with self.assertRaises(SystemExit):
+                check(temp)
+        workflow = (ROOT / "build-minimal-image.yml").read_text()
+        self.assertIn("cargo +1.82.0 build --locked", workflow)
+
     def test_embit_extract_hook_keeps_only_armv6_and_requires_it(self):
         recipe = ROOT / "package/python-embit/python-embit.mk"
         with tempfile.TemporaryDirectory() as temp:

@@ -21,6 +21,7 @@ if ! test -d "$work/buildroot-$BUILDROOT_COMMIT"; then
   tar -xzf "$archive" -C "$work"
 fi
 cargo vendor --locked --manifest-path "$source_dir/native-sr25519/Cargo.toml" "$work/cargo-vendor" >/dev/null
+"$SATOOSHI_LOGO_PYTHON" "$external/check-rust.py" "$work/cargo-vendor"
 export SATOOSHI_SOURCE_COMMIT="$(git -C "$source_dir" rev-parse HEAD)"
 export SATOOSHI_BUILD_ID="${GITHUB_RUN_NUMBER:-local}-${SATOOSHI_SOURCE_COMMIT:0:8}"
 export SATOOSHI_DIST="$dist"

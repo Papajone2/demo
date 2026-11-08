@@ -1,3 +1,14 @@
+# Build compatibility checks
+
+The minimal profile uses Buildroot's Rust/Cargo 1.82.0. Its native signing
+lockfile retains `zeroize_derive` 1.4.2 (edition 2021); 1.5.0 requires Rust 1.85.
+The preparation helper applies the exact compatibility patch idempotently.
+CI compiles the native library with 1.82.0 before the expensive image build,
+and the build checks every vendored manifest's minimum Rust version and edition.
+When updating dependencies, keep these checks and the ARM1176 runtime test.
+The runtime test invokes ARM Python directly through QEMU rather than relying
+on the host's optional binfmt registration to execute an ARM `env` child.
+
 # Satooshi minimal OS — original Pi Zero W/WH
 
 **Status: source preparation, not a built or physically verified image.**
