@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import struct
+import subprocess
 import tempfile
 import unittest
 
@@ -16,6 +17,38 @@ def module(name, path):
 
 
 class MinimalTests(unittest.TestCase):
+    def test_embit_extract_hook_keeps_only_armv6_and_requires_it(self):
+        recipe = ROOT / "package/python-embit/python-embit.mk"
+        with tempfile.TemporaryDirectory() as temp:
+            package = Path(temp) / "source"
+            libraries = package / "src/embit/util/prebuilt"
+            libraries.mkdir(parents=True)
+            keep = "libsecp256k1_linux_armv6l.so"
+            for name in (keep, "libsecp256k1_linux_armv7l.so",
+                         "libsecp256k1_linux_aarch64.so",
+                         "libsecp256k1_linux_x86_64.so",
+                         "libsecp256k1_darwin_arm64.dylib",
+                         "libsecp256k1_windows_amd64.dll"):
+                (libraries / name).write_bytes(b"fixture")
+            makefile = (
+                f"include {recipe}\n"
+                f"{package}/check:\n"
+                "\t$(call PYTHON_EMBIT_KEEP_ARMV6_LIBRARY)\n"
+            )
+            def run():
+                return subprocess.run(
+                    ["make", "--no-print-directory", "-f", "-", f"{package}/check"],
+                    input=makefile, text=True, capture_output=True,
+                )
+            result = run()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual([p.name for p in libraries.iterdir()], [keep])
+            self.assertEqual(run().returncode, 0)
+            (libraries / keep).unlink()
+            self.assertNotEqual(run().returncode, 0)
+        self.assertIn("PYTHON_EMBIT_POST_EXTRACT_HOOKS += PYTHON_EMBIT_KEEP_ARMV6_LIBRARY",
+                      recipe.read_text())
+
     def test_kernel_requires_all_critical_builtin_drivers(self):
         verify = module("verify_kernel", ROOT / "board/verify-kernel.py").verify
         with tempfile.TemporaryDirectory() as temp:

@@ -4,4 +4,15 @@ PYTHON_EMBIT_SITE = https://files.pythonhosted.org/packages/83/88/b054b00ade6d2a
 PYTHON_EMBIT_SETUP_TYPE = setuptools
 PYTHON_EMBIT_LICENSE = MIT
 PYTHON_EMBIT_LICENSE_FILES = LICENSE
+
+# The upstream sdist bundles several operating systems and CPU architectures.
+# Keep only the original Zero W's ARMv6 library before wheel creation, rather
+# than disabling Buildroot's target architecture checks.
+define PYTHON_EMBIT_KEEP_ARMV6_LIBRARY
+	test -f $(@D)/src/embit/util/prebuilt/libsecp256k1_linux_armv6l.so
+	find $(@D)/src/embit/util/prebuilt -type f \
+		! -name libsecp256k1_linux_armv6l.so -delete
+endef
+PYTHON_EMBIT_POST_EXTRACT_HOOKS += PYTHON_EMBIT_KEEP_ARMV6_LIBRARY
+
 $(eval $(python-package))

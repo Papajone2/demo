@@ -11,6 +11,13 @@ from satooshi.screen import Screen
 from satooshi.oled import OLED
 from satooshi.evm import address
 
+# Load the retained upstream ARMv6 binary on the emulated ARM1176, not just
+# embit's pure-Python fallback, so packaging cannot silently remove it.
+import embit
+embit_libraries = Path(embit.__file__).parent / "util/prebuilt"
+assert sorted(p.name for p in embit_libraries.iterdir()) == ["libsecp256k1_linux_armv6l.so"]
+ctypes.CDLL(str(embit_libraries / "libsecp256k1_linux_armv6l.so"))
+
 assert Mnemonic("english").check(Mnemonic("english").to_mnemonic(bytes(32)))
 assert address(bytes(32)) == "0xF278cF59F82eDcf871d630F28EcC8056f25C1cdb"
 keys = public_keys(bytes(32))
