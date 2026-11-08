@@ -17,6 +17,15 @@ def module(name, path):
 
 
 class MinimalTests(unittest.TestCase):
+    def test_directly_executed_hooks_and_startup_scripts_are_executable(self):
+        import os
+        for relative in ("board/post-build.sh", "board/post-image.sh",
+                         "board/overlay/etc/init.d/rcS", "board/overlay/etc/init.d/rcK",
+                         "board/overlay/usr/sbin/satooshi-run"):
+            path = ROOT / relative
+            self.assertTrue(os.access(path, os.X_OK), f"Missing execute bit: {relative}")
+            self.assertTrue(path.read_text().startswith("#!"), f"Missing interpreter: {relative}")
+
     def test_arm_smoke_invokes_python_directly_without_binfmt_dependency(self):
         script = (ROOT / "board/post-build.sh").read_text()
         self.assertIn('chroot "$target" /usr/bin/qemu-arm-static \\\n  /usr/bin/python3', script)

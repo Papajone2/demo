@@ -11,6 +11,16 @@ export SATOOSHI_LOGO_PYTHON="$(command -v python3)"
 command -v cargo >/dev/null
 test -x /usr/bin/qemu-arm-static
 sudo -n true
+# Buildroot executes these hooks directly; missing Git execute bits otherwise
+# fail only after the entire toolchain, kernel and userspace have compiled.
+for entry in board/post-build.sh board/post-image.sh \
+  board/overlay/etc/init.d/rcS board/overlay/etc/init.d/rcK \
+  board/overlay/usr/sbin/satooshi-run; do
+  test -x "$external/$entry" || {
+    echo "Required script is not executable: $entry" >&2
+    exit 1
+  }
+done
 mkdir -p "$work" "$dist"
 archive="$work/buildroot.tar.gz"
 if ! test -f "$archive"; then
