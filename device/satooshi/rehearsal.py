@@ -34,7 +34,7 @@ class Rehearsal:
         if not isinstance(payload, dict):
             raise ValueError("Invalid preview")
         operation = payload.get("operation")
-        if operation not in ("send", "swap", "receive"):
+        if operation not in ("send", "swap", "receive", "stake", "unstake", "claim", "withdraw", "vote", "approve"):
             raise ValueError("Unsupported preview operation")
         if operation == "swap":
             fields |= {"receiveAmount", "receiveSymbol"}
@@ -42,7 +42,7 @@ class Rehearsal:
             raise ValueError("Unexpected preview fields")
         self.data = dict(payload)  # Immutable to subsequent host payload edits.
         self.operation = operation
-        quantity(payload["amount"], "Amount")
+        quantity(payload["amount"], "Amount", positive=operation in ("send", "swap", "receive", "stake"))
         quantity(payload["fee"], "Fee", positive=False)
         coin(payload["symbol"], "Symbol")
         coin(payload["feeSymbol"], "Fee symbol")
@@ -61,7 +61,9 @@ class Rehearsal:
 
     def pages(self):
         d = self.data
-        action = {"send": "Send", "swap": "Swap", "receive": "Receive"}[self.operation]
+        action = {"send": "Send", "swap": "Swap", "receive": "Receive",
+                  "stake": "Stake", "unstake": "Unstake", "claim": "Claim",
+                  "withdraw": "Withdraw", "vote": "Vote", "approve": "Approve"}[self.operation]
         pages = [
             (action + " amount", [d["amount"] + " " + d["symbol"], d["network"]]),
         ]

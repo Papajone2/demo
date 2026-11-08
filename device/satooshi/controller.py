@@ -48,7 +48,7 @@ class Controller:
                     controls="left-right-hold", confirmHoldMs=1000, prototype=True,
                     autoPair=True, paired=self.connected,
                     bootReadySeconds=self.boot_ready_seconds,
-                    approvalCapabilities=["device-blind-signing-v1", "receive-address-v1"])
+                    approvalCapabilities=["device-blind-signing-v1", "receive-address-v1", "staking-review-v1"])
 
     def changed(self):
         self.emit({"event": "state", "data": self.status()})
@@ -82,7 +82,7 @@ class Controller:
                 self.vault.atomic_write(self.vault.directory / "welcome-seen", b"1")
                 self.welcome_seen = True
             return {**self.status(), "autoPair": True, "paired": True,
-                    "approvalCapabilities": ["device-blind-signing-v1", "receive-address-v1"]}
+                    "approvalCapabilities": ["device-blind-signing-v1", "receive-address-v1", "staking-review-v1"]}
         if method == "cancel":
             self.cancel()
             return self.status()
