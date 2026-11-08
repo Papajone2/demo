@@ -1,4 +1,6 @@
 native-sr25519/target/
+/build-minimal/
+/dist-minimal/
 __pycache__/
 *.pyc
 .venv/

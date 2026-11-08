@@ -1,0 +1,84 @@
+"""Host-only contract tests. No kernel compilation, devices or wallet secrets."""
+import importlib.util
+from pathlib import Path
+import struct
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    value = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(value)
+    return value
+
+
+class MinimalTests(unittest.TestCase):
+    def test_kernel_requires_all_critical_builtin_drivers(self):
+        verify = module("verify_kernel", ROOT / "board/verify-kernel.py").verify
+        with tempfile.TemporaryDirectory() as temp:
+            config = Path(temp) / "linux-fixture/.config"
+            config.parent.mkdir()
+            text = (ROOT / "board/kernel.fragment").read_text()
+            config.write_text(text)
+            verify(temp)
+            config.write_text(text.replace("CONFIG_EXT4_FS=y", "# CONFIG_EXT4_FS is not set"))
+            with self.assertRaises(SystemExit):
+                verify(temp)
+
+    def test_mbr_and_ext4_validation_rejects_corruption(self):
+        verify = module("verify_image", ROOT / "board/verify-image.py").verify
+        with tempfile.TemporaryDirectory() as temp:
+            image = Path(temp) / "test.img"
+            data = bytearray(128 * 512)
+            data[510:512] = b"\x55\xaa"
+            for index, kind in enumerate((0x0C, 0x83, 0x83)):
+                start = 8 + index * 32
+                offset = 446 + index * 16
+                data[offset + 4] = kind
+                struct.pack_into("<II", data, offset + 8, start, 32)
+                if index:
+                    data[start * 512 + 1080:start * 512 + 1082] = b"\x53\xef"
+            image.write_bytes(data)
+            verify(image)
+            data[510] = 0
+            image.write_bytes(data)
+            with self.assertRaises(SystemExit):
+                verify(image)
+
+    def test_no_automatic_format_or_security_shortcuts(self):
+        startup = (ROOT / "board/overlay/etc/init.d/rcS").read_text()
+        self.assertLess(startup.index("early-splash"), startup.index("e2fsck"))
+        self.assertNotIn("mkfs", startup)
+        self.assertIn("empty = true", (ROOT / "board/genimage.cfg").read_text())
+        self.assertIn("exit 1", startup)
+        launcher = (ROOT / "board/overlay/usr/sbin/satooshi-run").read_text()
+        for protection in ("--no-new-privs", "--unshare-net", "--ro-bind / /",
+                           "--tmpfs /tmp", "--cap-drop ALL", "--reuid=1000"):
+            self.assertIn(protection, launcher)
+
+    def test_no_network_services_or_console_login(self):
+        init = (ROOT / "board/overlay/etc/inittab").read_text()
+        self.assertNotIn("getty", init)
+        self.assertNotIn("login", init)
+        workflow = (ROOT / "build-minimal-image.yml").read_text()
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertNotIn("  push:", workflow)
+        self.assertIn("image/minimal/build.sh", workflow)
+
+    def test_no_silent_missing_dependencies(self):
+        check = module("check_config", ROOT / "check-config.py").check
+        fragment = (ROOT / "configs/satooshi.fragment").read_text()
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / ".config"
+            path.write_text(fragment + "\nBR2_arm=y\nBR2_arm1176jzf_s=y\nBR2_TARGET_ROOTFS_EXT2_4=y\n")
+            check(path)
+            path.write_text(path.read_text().replace("BR2_PACKAGE_SATOOSHI_NATIVE=y", ""))
+            with self.assertRaises(SystemExit):
+                check(path)
+
+
+if __name__ == "__main__":
+    unittest.main()

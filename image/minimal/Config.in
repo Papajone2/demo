@@ -1,0 +1,4 @@
+source "$BR2_EXTERNAL_SATOOSHI_PATH/package/python-mnemonic/Config.in"
+source "$BR2_EXTERNAL_SATOOSHI_PATH/package/python-embit/Config.in"
+source "$BR2_EXTERNAL_SATOOSHI_PATH/package/satooshi-native/Config.in"
+source "$BR2_EXTERNAL_SATOOSHI_PATH/package/satooshi-runtime/Config.in"

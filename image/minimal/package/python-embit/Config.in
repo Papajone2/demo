@@ -1,0 +1,3 @@
+config BR2_PACKAGE_PYTHON_EMBIT
+	bool "Satooshi embit"
+	depends on BR2_PACKAGE_PYTHON3

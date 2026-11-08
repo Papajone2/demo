@@ -1,0 +1,4 @@
+::sysinit:/etc/init.d/rcS
+::respawn:/usr/sbin/satooshi-run
+::ctrlaltdel:/sbin/reboot
+::shutdown:/etc/init.d/rcK

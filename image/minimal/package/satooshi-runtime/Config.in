@@ -1,0 +1,3 @@
+config BR2_PACKAGE_SATOOSHI_RUNTIME
+	bool "Satooshi wallet runtime"
+	depends on BR2_PACKAGE_PYTHON3

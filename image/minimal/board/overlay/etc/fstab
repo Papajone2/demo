@@ -1,0 +1,6 @@
+/dev/mmcblk0p2 / ext4 ro,noatime 0 0
+proc /proc proc nosuid,nodev,noexec 0 0
+sysfs /sys sysfs ro,nosuid,nodev,noexec 0 0
+devtmpfs /dev devtmpfs nosuid 0 0
+tmpfs /run tmpfs nosuid,nodev,mode=0755 0 0
+tmpfs /tmp tmpfs nosuid,nodev,mode=1777 0 0

@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || test -c /dev/null
+mount -t tmpfs -o nosuid,nodev,mode=0755 tmpfs /run
+mount -t tmpfs -o nosuid,nodev,mode=1777 tmpfs /tmp
+umask 077
+# The kernel can draw before this filesystem/startup script is available.
+# Leave that frame visible; fall back if the adapter was not ready then.
+logo_ms="$(cat /sys/kernel/satooshi_logo_ms 2>/dev/null || true)"
+case "$logo_ms" in
+  ''|*[!0-9]*)
+    /opt/satooshi/image/early-splash >/run/splash.log 2>&1 || echo "SATOOSHI_BOOT stage=logo_failed" >/run/splash.log ;;
+  *) echo "SATOOSHI_BOOT stage=logo_kernel" >/run/splash.log ;;
+esac
+# Initial logo takes priority over USB setup and all wallet/storage work.
+/opt/satooshi/image/minimal-usb.sh >/run/usb.log 2>&1 &
+# Hardware entropy is not bypassed. Python/getrandom still waits for the CRNG.
+/usr/sbin/rngd -f -r /dev/hwrng >/run/rng.log 2>&1 &
+status=0
+/sbin/e2fsck -p /dev/mmcblk0p3 >/run/storage.log 2>&1 || status=$?
+case "$status" in 0|1) ;; *) echo "Storage check failed; wallet will not start." >>/run/storage.log; exit 1;; esac
+mount -t ext4 -o nosuid,nodev,noexec,noatime /dev/mmcblk0p3 /data
+mkdir -p /data/satooshi
+chown 1000:1000 /data/satooshi
+chmod 700 /data/satooshi
+touch /run/storage-ready
+# Optional public diagnostics do not hold up the supervised wallet process.
+(/bin/sleep 60; /opt/satooshi/image/minimal-report.sh) >/run/report.log 2>&1 &

@@ -1,0 +1,3 @@
+config BR2_PACKAGE_PYTHON_MNEMONIC
+	bool "Satooshi BIP39 mnemonic"
+	depends on BR2_PACKAGE_PYTHON3
