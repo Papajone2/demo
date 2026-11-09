@@ -15,6 +15,10 @@ trap 'umount /run/boot-report' EXIT
     test ! -f "$log" || grep -E 'SATOOSHI_BOOT stage=[a-z_]+( kernel_seconds=[0-9]+\.[0-9]+)?$' "$log" || true
   done
   test ! -f /run/wallet-startup-error || echo "Required device nodes unavailable."
+  if test -f /run/wallet.log &&
+     grep -Fq 'bwrap: loopback: Failed RTM_NEWADDR' /run/wallet.log; then
+    echo "Wallet isolation failed: local loopback setup unavailable."
+  fi
   test -f /run/storage-ready && echo "Encrypted-wallet data filesystem mounted."
 } >/run/boot-report/satooshi-boot-status.txt
 {

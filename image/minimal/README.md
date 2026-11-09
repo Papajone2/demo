@@ -1,3 +1,19 @@
+# Wallet startup verification
+
+The isolated wallet process needs `CONFIG_INET=y` for Bubblewrap's private
+loopback setup. This does **not** provide internet access: the launcher still
+creates a separate network namespace with no external interfaces.
+
+Image packaging now boots a disposable copy of the built ARMv6 kernel/rootfs
+in QEMU and exercises the actual launcher's isolation flags. The probe checks
+UID/group dropping, no-new-privileges, dropped capabilities, read-only root,
+writable wallet-data mount, working local loopback and no outbound route.
+It never starts a real wallet or uses keys. It supplements, rather than replaces,
+the ARM ABI/import tests and physical USB/bonnet testing.
+
+Startup reports include fixed launcher-started/device-nodes-ready/failed markers.
+Raw wallet logs are not copied to the SD boot partition.
+
 # Build compatibility checks
 
 The minimal profile uses Buildroot's Rust/Cargo 1.82.0. Its native signing

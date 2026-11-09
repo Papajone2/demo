@@ -17,6 +17,43 @@ def module(name, path):
 
 
 class MinimalTests(unittest.TestCase):
+    def test_full_system_boot_check_exercises_actual_sandbox_without_secrets(self):
+        checker = module("sandbox_boot", ROOT / "board/check-sandbox-boot.py")
+        launcher = (ROOT / "board/overlay/usr/sbin/satooshi-run").read_text()
+        probe_launcher = checker.launcher_for_probe(launcher)
+        self.assertNotIn("-m satooshi.main", probe_launcher)
+        for protection in ("--no-new-privs", "--unshare-net", "--cap-drop ALL",
+                           "--reuid=1000", "--ro-bind / /"):
+            self.assertIn(protection, probe_launcher)
+        with self.assertRaises(SystemExit):
+            checker.launcher_for_probe(launcher.replace("-m satooshi.main", "-m changed"))
+        compile(checker.PROBE, "<sandbox-probe>", "exec")
+        self.assertIn("127.0.0.1", checker.PROBE)
+        self.assertIn("errno.ENETUNREACH", checker.PROBE)
+        self.assertIn("getuid() == 1000", checker.PROBE)
+        self.assertIn("NoNewPrivs", checker.PROBE)
+        self.assertIn('check-sandbox-boot.py', (ROOT / "board/post-image.sh").read_text())
+
+    def test_offline_wallet_sandbox_requires_ipv4_loopback(self):
+        fragment = (ROOT / "board/kernel.fragment").read_text().splitlines()
+        self.assertIn("CONFIG_INET=y", fragment)
+        self.assertIn("CONFIG_NET_NS=y", fragment)
+        launcher = (ROOT / "board/overlay/usr/sbin/satooshi-run").read_text()
+        self.assertIn("--unshare-net", launcher)
+        self.assertLess(launcher.index("exec >>/run/wallet.log"),
+                        launcher.index("test -f /run/storage-ready"))
+        self.assertIn("stage=launcher_failed", launcher)
+        verify = module("verify_ipv4", ROOT / "board/verify-kernel.py").verify
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "linux-test/.config"
+            path.parent.mkdir()
+            path.write_text("\n".join(fragment) + "\n")
+            verify(temp)
+            path.write_text(path.read_text().replace("CONFIG_INET=y", "# CONFIG_INET is not set"))
+            with self.assertRaises(SystemExit) as error:
+                verify(temp)
+            self.assertIn("CONFIG_INET=y", str(error.exception))
+
     def test_optional_modules_are_disabled_before_kconfig_not_promoted(self):
         prepare = module("prepare_kernel", ROOT / "board/prepare-kernel.py").prepare
         with tempfile.TemporaryDirectory() as temp:

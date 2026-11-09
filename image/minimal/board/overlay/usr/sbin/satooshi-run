@@ -1,5 +1,11 @@
 #!/bin/sh
 set -eu
+umask 077
+# Open before permission/namespace setup, so failures there are not lost on
+# a device without a text console. Reports export fixed markers only.
+exec >>/run/wallet.log 2>&1
+trap 'code=$?; if test "$code" -ne 0; then echo "SATOOSHI_BOOT stage=launcher_failed"; fi' EXIT
+echo "SATOOSHI_BOOT stage=launcher_started"
 test -f /run/storage-ready || { sleep 5; exit 1; }
 # Bound retries to actual device nodes, never a guessed fixed boot delay.
 tries=0
@@ -10,9 +16,9 @@ while ! test -c /dev/ttyGS0 || ! test -c /dev/i2c-1 || ! test -c /dev/gpiomem; d
 done
 chown 1000:1000 /dev/ttyGS0 /dev/i2c-1 /dev/gpiomem
 chmod 600 /dev/ttyGS0 /dev/i2c-1 /dev/gpiomem
-umask 077
+echo "SATOOSHI_BOOT stage=device_nodes_ready"
 # Keep privilege dropping, filesystem isolation, no networking and private tmp.
-exec /usr/bin/setpriv --reuid=1000 --regid=1000 --clear-groups --no-new-privs \
+/usr/bin/setpriv --reuid=1000 --regid=1000 --clear-groups --no-new-privs \
   /usr/bin/bwrap --unshare-user --unshare-pid --unshare-net --unshare-ipc \
   --unshare-uts --die-with-parent --new-session --cap-drop ALL \
   --ro-bind / / --proc /proc --dev /dev \
@@ -23,5 +29,4 @@ exec /usr/bin/setpriv --reuid=1000 --regid=1000 --clear-groups --no-new-privs \
   --clearenv --setenv PATH /usr/bin:/bin \
   --setenv PYTHONPATH /opt/satooshi/device \
   --setenv PYTHONDONTWRITEBYTECODE 1 \
-  --chdir /opt/satooshi /usr/bin/python3 -m satooshi.main \
-  >>/run/wallet.log 2>&1
+  --chdir /opt/satooshi /usr/bin/python3 -m satooshi.main

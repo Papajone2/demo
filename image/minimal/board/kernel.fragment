@@ -22,6 +22,9 @@ CONFIG_USB_DWC2_PERIPHERAL=y
 CONFIG_USB_G_SERIAL=y
 CONFIG_TTY=y
 CONFIG_UNIX=y
+# Bubblewrap configures 127.0.0.1 inside its isolated, offline network namespace.
+# CONFIG_NET_NS alone is insufficient: RTM_NEWADDR requires IPv4 support.
+CONFIG_INET=y
 CONFIG_USB_F_ACM=y
 CONFIG_USB_U_SERIAL=y
 CONFIG_CPU_FREQ=y

@@ -8,6 +8,7 @@ rm -rf "${BUILD_DIR:?}/genimage-satooshi"
   --tmppath "$BUILD_DIR/genimage-satooshi" --inputpath "$images" \
   --outputpath "$images" --config "$board/genimage.cfg"
 python3 "$board/verify-image.py" "$images/satooshi-minimal.img"
+python3 "$board/check-sandbox-boot.py" "$images" "$TARGET_DIR"
 name="satooshi-minimal-0.3.0-${SATOOSHI_BUILD_ID:?}"
 mkdir -p "${SATOOSHI_DIST:?}"
 xz -T2 -6 -c "$images/satooshi-minimal.img" >"$SATOOSHI_DIST/$name.img.xz"

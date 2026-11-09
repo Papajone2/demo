@@ -10,6 +10,9 @@ export SATOOSHI_LOGO_PYTHON="$(command -v python3)"
 "$SATOOSHI_LOGO_PYTHON" -c 'from PIL import Image' # Fail before an expensive cross-build.
 command -v cargo >/dev/null
 test -x /usr/bin/qemu-arm-static
+for command in qemu-system-arm fdtput debugfs; do
+  command -v "$command" >/dev/null
+done
 sudo -n true
 # Buildroot executes these hooks directly; missing Git execute bits otherwise
 # fail only after the entire toolchain, kernel and userspace have compiled.
