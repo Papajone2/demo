@@ -31,6 +31,37 @@ class MinimalTests(unittest.TestCase):
         self.assertIn('chroot "$target" /usr/bin/qemu-arm-static \\\n  /usr/bin/python3', script)
         self.assertNotIn("/usr/bin/env PYTHONPATH", script)
 
+    def test_gpio_abi_check_loads_native_extension_not_python_wrapper(self):
+        import ast
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        tree = ast.parse((ROOT / "board/target-smoke.py").read_text())
+        start = next(i for i, node in enumerate(tree.body)
+                     if isinstance(node, ast.Assign)
+                     and isinstance(node.targets[0], ast.Name)
+                     and node.targets[0].id == "gpio")
+        block = compile(ast.Module(body=tree.body[start:start + 3], type_ignores=[]),
+                        "<gpio-abi-check>", "exec")
+        origin = "/fixture/RPi/_GPIO.cpython-312-arm-linux-gnueabihf.so"
+        spec = SimpleNamespace(origin=origin,
+                               loader=importlib.machinery.ExtensionFileLoader("RPi._GPIO", origin))
+        find_spec = Mock(return_value=spec)
+        cdll = Mock()
+        namespace = {
+            "importlib": SimpleNamespace(util=SimpleNamespace(find_spec=find_spec),
+                                        machinery=importlib.machinery),
+            "ctypes": SimpleNamespace(CDLL=cdll),
+        }
+        exec(block, namespace)
+        find_spec.assert_called_once_with("RPi._GPIO")
+        cdll.assert_called_once_with(origin)
+        # Reject a Python wrapper even if a future refactor resolves that instead.
+        spec.loader = importlib.machinery.SourceFileLoader("RPi.GPIO", "/fixture/__init__.py")
+        cdll.reset_mock()
+        with self.assertRaises(AssertionError):
+            exec(block, namespace)
+        cdll.assert_not_called()
+
     def test_rust_manifest_preflight_rejects_newer_editions_and_msrv(self):
         check = module("check_rust", ROOT / "check-rust.py").check
         with tempfile.TemporaryDirectory() as temp:
