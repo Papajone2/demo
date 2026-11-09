@@ -11,8 +11,8 @@ on the host's optional binfmt registration to execute an ARM `env` child.
 
 # Satooshi minimal OS — original Pi Zero W/WH
 
-**Status: source preparation, not a built or physically verified image.**
-No measured boot-time claim is made. This profile is separate from the existing
+**Status: experimental image with build-time ARM checks; hardware validation is
+separate.** No guaranteed boot-time claim is made. This profile is separate from the existing
 Raspberry Pi OS build, which remains the known fallback.
 
 ## Goal and architecture
@@ -23,6 +23,14 @@ signer, keys or branding is substituted.
 
 - Pinned Buildroot **2025.02.19 LTS**, original ARM1176/ARMv6, hard-float glibc.
 - Small BusyBox init rather than the Raspberry Pi OS/systemd dependency graph.
+- Optional upstream `=m` drivers are explicitly disabled before the first
+  Kconfig expansion; otherwise setting `CONFIG_MODULES=n` promotes them to
+  built-ins. Only appliance requirements are then re-enabled. A post-patch hook
+  applies this to the pinned kernel, never to the fallback OS profile.
+- LZO kernel compression, stock-frequency performance governor and initial
+  firmware turbo prioritise startup. No SD/GPU/CPU overclock, undervolting,
+  entropy bypass or security-mitigation removal is used. Performance mode can
+  use more power than the old powersave governor.
 - SD/ext4, I2C OLED, GPIO, hardware RNG and USB serial drivers built into Linux.
   There is no initramfs or module-loading wait. Packaging rejects a kernel
   without the required built-in drivers.
@@ -36,7 +44,11 @@ signer, keys or branding is substituted.
   kernel initialization.
 - If early I2C is unavailable, the existing native userspace splash remains the
   fallback. A successful early frame is not redrawn by the startup shell.
-  USB follows this first-logo step, before Python/storage checks. No radio networking,
+  USB CDC ACM registers inside the kernel, independently of the shell, storage
+  checks, PIN and Python. The competing legacy host controller and configfs
+  gadget are disabled. The boot command line supplies the same VID/PID expected
+  by the browser; packaging validates the actual boot files and peripheral
+  overlay. No radio networking,
   desktop, login console, package manager or first-boot expansion wizard.
 - Read-only system; separate ext4 partition holds the existing encrypted-vault
   format. Startup checks that filesystem and never silently formats a failed one.
@@ -81,7 +93,7 @@ because configuration validation passed.
 The workflow runs existing host wallet regression checks, cross-compiles the
 actual ARMv6 runtime and sr25519 library, tests imports/crypto/fonts under
 `QEMU_CPU=arm1176`, checks MBR and root/data filesystems, then uploads uniquely
-named `.img.xz`, checksum, configuration and build manifest.
+named `.img.xz`, checksum, Buildroot/kernel configurations and build manifest.
 
 ## Physical validation / migration
 
@@ -105,11 +117,17 @@ boot partition. Kernel-relative times do not include firmware startup time.
 An early success also exposes the first-logo time in milliseconds at
 `/sys/kernel/satooshi_logo_ms`. Add `satooshi_logo=0` to `cmdline.txt` to disable
 the kernel renderer and use the native fallback without changing the wallet.
-This is prepared source, not proof of a power-on-to-logo time: compilation,
-I2C behavior and actual timing must still pass the new image/physical checks.
+Public boot and USB reports are written to the FAT boot partition after 15
+and 60 seconds. `satooshi-usb-status.txt` includes controller/function/link
+state and serial-node presence without application payloads or wallet secrets.
+`configured` means the host enumerated USB; it does not prove the application
+handshake or Linux user's serial permissions. Kernel timestamps exclude the
+time spent in Raspberry Pi firmware before Linux starts.
+Physical timing and USB behaviour must still be checked on the actual device.
 
 References:
 - https://github.com/heneault/yocto-pitrezor/blob/master/meta-pitrezor/recipes-core/images/pitrezor-image.bb
 - https://github.com/heneault/yocto-pitrezor/blob/master/build/conf/local.conf
 - https://buildroot.org/downloads/manual/manual.html
 - https://kernel.googlesource.com/pub/scm/linux/kernel/git/torvalds/linux/+/refs/tags/v6.12/init/main.c
+- https://kittenlabs.de/blog/2024/09/01/extreme-pi-boot-optimization/

@@ -14,7 +14,7 @@ case "$logo_ms" in
     /opt/satooshi/image/early-splash >/run/splash.log 2>&1 || echo "SATOOSHI_BOOT stage=logo_failed" >/run/splash.log ;;
   *) echo "SATOOSHI_BOOT stage=logo_kernel" >/run/splash.log ;;
 esac
-# Initial logo takes priority over USB setup and all wallet/storage work.
+# CDC ACM is already bound by the kernel; record its readiness independently.
 /opt/satooshi/image/minimal-usb.sh >/run/usb.log 2>&1 &
 # Hardware entropy is not bypassed. Python/getrandom still waits for the CRNG.
 /usr/sbin/rngd -f -r /dev/hwrng >/run/rng.log 2>&1 &
@@ -27,4 +27,5 @@ chown 1000:1000 /data/satooshi
 chmod 700 /data/satooshi
 touch /run/storage-ready
 # Optional public diagnostics do not hold up the supervised wallet process.
-(/bin/sleep 60; /opt/satooshi/image/minimal-report.sh) >/run/report.log 2>&1 &
+(/bin/sleep 15; /opt/satooshi/image/minimal-report.sh
+ /bin/sleep 45; /opt/satooshi/image/minimal-report.sh) >/run/report.log 2>&1 &

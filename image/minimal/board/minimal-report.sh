@@ -17,4 +17,21 @@ trap 'umount /run/boot-report' EXIT
   test ! -f /run/wallet-startup-error || echo "Required device nodes unavailable."
   test -f /run/storage-ready && echo "Encrypted-wallet data filesystem mounted."
 } >/run/boot-report/satooshi-boot-status.txt
+{
+  echo "Satooshi USB status: built-in CDC ACM; no wallet secrets."
+  for udc in /sys/class/udc/*; do
+    test -d "$udc" || continue
+    printf 'Controller: %s\n' "${udc##*/}"
+    printf 'Function: '; cat "$udc/function" 2>/dev/null || true
+    printf 'Host link state: '; cat "$udc/state" 2>/dev/null || true
+  done
+  if test -c /dev/ttyGS0; then
+    echo "Device serial node exists."
+  else
+    echo "Device serial node missing."
+  fi
+  test ! -f /run/usb.log || cat /run/usb.log
+  # Restrict output to controller/USB errors, never application payloads.
+  dmesg | grep -Ei 'dwc2|dwc_otg|g_serial|gadget serial|ttyGS|udc' || true
+} >/run/boot-report/satooshi-usb-status.txt
 sync

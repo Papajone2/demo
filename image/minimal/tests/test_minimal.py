@@ -17,6 +17,69 @@ def module(name, path):
 
 
 class MinimalTests(unittest.TestCase):
+    def test_optional_modules_are_disabled_before_kconfig_not_promoted(self):
+        prepare = module("prepare_kernel", ROOT / "board/prepare-kernel.py").prepare
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "bcmrpi_defconfig"
+            path.write_text("CONFIG_BOARD=y\nCONFIG_OPTIONAL=m\n# CONFIG_OLD is not set\n")
+            self.assertEqual(prepare(path), 1)
+            self.assertEqual(path.read_text(),
+                             "CONFIG_BOARD=y\n# CONFIG_OPTIONAL is not set\n# CONFIG_OLD is not set\n")
+            self.assertEqual(prepare(path), 0)
+        hooks = (ROOT / "linux/early-logo.mk").read_text()
+        self.assertIn("LINUX_POST_PATCH_HOOKS += SATOOSHI_TRIM_DISTRO_KERNEL", hooks)
+        self.assertIn('arch/arm/configs/bcmrpi_defconfig', hooks)
+
+    def test_kernel_serial_readiness_and_missing_controller_fail_explicitly(self):
+        import os
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            udc = root / "sys/class/udc/controller"
+            udc.mkdir(parents=True)
+            (udc / "function").write_text("Gadget Serial v2.4\n")
+            (udc / "state").write_text("configured\n")
+            (root / "dev").mkdir()
+            (root / "dev/ttyGS0").symlink_to("/dev/null")
+            (root / "proc").mkdir()
+            (root / "proc/uptime").write_text("2.50 0.00\n")
+            env = dict(os.environ, SATOOSHI_USB_SYS_ROOT=str(root / "sys"),
+                       SATOOSHI_USB_DEV_ROOT=str(root / "dev"),
+                       SATOOSHI_USB_PROC_ROOT=str(root / "proc"),
+                       SATOOSHI_USB_MAX_TRIES="1")
+            command = ["sh", str(ROOT / "board/minimal-usb.sh")]
+            result = subprocess.run(command, env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("stage=usb_bound kernel_seconds=2.50", result.stdout)
+            self.assertIn("Host link state: configured", result.stdout)
+            (root / "dev/ttyGS0").unlink()
+            result = subprocess.run(command, env=env, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("USB serial unavailable", result.stdout)
+        script = (ROOT / "board/minimal-usb.sh").read_text()
+        self.assertNotIn("mount -t configfs", script)
+        self.assertNotIn("usb_gadget/", script)
+
+    def test_packaged_boot_files_include_chrome_serial_identity(self):
+        verify = module("verify_boot", ROOT / "board/verify-boot.py").verify
+        with tempfile.TemporaryDirectory() as temp:
+            images = Path(temp)
+            firmware = images / "rpi-firmware"
+            (firmware / "overlays").mkdir(parents=True)
+            (firmware / "config.txt").write_text((ROOT / "board/config.txt").read_text())
+            (firmware / "cmdline.txt").write_text((ROOT / "board/cmdline.txt").read_text())
+            for relative in ("rpi-firmware/bootcode.bin", "rpi-firmware/start_cd.elf",
+                             "rpi-firmware/fixup_cd.dat", "rpi-firmware/overlays/dwc2.dtbo",
+                             "bcm2708-rpi-zero-w.dtb", "zImage"):
+                (images / relative).write_bytes(b"fixture")
+            verify(images)
+            (firmware / "cmdline.txt").write_text("root=/dev/mmcblk0p2\n")
+            with self.assertRaises(SystemExit):
+                verify(images)
+            (firmware / "cmdline.txt").write_text((ROOT / "board/cmdline.txt").read_text())
+            (firmware / "overlays/dwc2.dtbo").unlink()
+            with self.assertRaises(SystemExit):
+                verify(images)
+
     def test_directly_executed_hooks_and_startup_scripts_are_executable(self):
         import os
         for relative in ("board/post-build.sh", "board/post-image.sh",
@@ -120,6 +183,10 @@ class MinimalTests(unittest.TestCase):
             text = (ROOT / "board/kernel.fragment").read_text()
             config.write_text(text)
             verify(temp)
+            config.write_text(text.replace("# CONFIG_USB_DWCOTG is not set",
+                                          "CONFIG_USB_DWCOTG=y"))
+            with self.assertRaises(SystemExit):
+                verify(temp)
             config.write_text(text.replace("CONFIG_EXT4_FS=y", "# CONFIG_EXT4_FS is not set"))
             with self.assertRaises(SystemExit):
                 verify(temp)

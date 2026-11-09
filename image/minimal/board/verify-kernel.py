@@ -9,6 +9,11 @@ def verify(build_dir):
     actual = set(configs[0].read_text().splitlines())
     fragment = (Path(__file__).parent / "kernel.fragment").read_text().splitlines()
     missing = [line for line in fragment if line.endswith("=y") and line not in actual]
+    for line in fragment:
+        if line.startswith("# CONFIG_") and line.endswith(" is not set"):
+            symbol = line.split()[1]
+            if f"{symbol}=y" in actual or f"{symbol}=m" in actual:
+                missing.append(f"{symbol} must be disabled")
     if "CONFIG_MODULES=y" in actual or "CONFIG_BLK_DEV_INITRD=y" in actual:
         missing.append("Built-in-only kernel without initramfs required")
     if missing:

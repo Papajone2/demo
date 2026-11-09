@@ -1,6 +1,14 @@
 # Dependencies are configured before PRE_BUILD hooks. Use the host interpreter
 # captured before Buildroot changes PATH; Pillow is in firmware requirements.
 SATOOSHI_LOGO_PYTHON ?= /usr/bin/python3
+# With CONFIG_MODULES=n, distro =m choices otherwise become built-ins. Strip
+# them before the first olddefconfig, then re-enable only required drivers.
+define SATOOSHI_TRIM_DISTRO_KERNEL
+$(SATOOSHI_LOGO_PYTHON) \
+"$(BR2_EXTERNAL_SATOOSHI_PATH)/board/prepare-kernel.py" \
+"$(@D)/arch/arm/configs/bcmrpi_defconfig"
+endef
+LINUX_POST_PATCH_HOOKS += SATOOSHI_TRIM_DISTRO_KERNEL
 # Validate resolved Kconfig before compiling the kernel, not only at packaging.
 define SATOOSHI_VERIFY_KERNEL_CONFIG
 $(SATOOSHI_LOGO_PYTHON) \

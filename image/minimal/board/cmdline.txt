@@ -1,1 +1,1 @@
-root=/dev/mmcblk0p2 rootfstype=ext4 rootwait ro quiet loglevel=3
+root=/dev/mmcblk0p2 rootfstype=ext4 rootwait ro quiet loglevel=3 g_serial.use_acm=1 g_serial.n_ports=1 g_serial.idVendor=0x1d6b g_serial.idProduct=0x0104 g_serial.iManufacturer=Satooshi g_serial.iProduct=Satooshi
