@@ -31,5 +31,8 @@ def verify_logo(build_dir):
 
 
 if __name__ == "__main__":
-    verify(sys.argv[1])
-    verify_logo(sys.argv[1])
+    config_only = sys.argv[1] == "--config-only"
+    build_dir = sys.argv[2] if config_only else sys.argv[1]
+    verify(build_dir)
+    if not config_only:
+        verify_logo(build_dir)

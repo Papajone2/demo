@@ -92,6 +92,18 @@ class MinimalTests(unittest.TestCase):
             config.write_text(text.replace("CONFIG_EXT4_FS=y", "# CONFIG_EXT4_FS is not set"))
             with self.assertRaises(SystemExit):
                 verify(temp)
+            config.write_text(text.replace("CONFIG_RASPBERRYPI_GPIOMEM=y",
+                                          "CONFIG_BCM2835_DEVGPIOMEM=y"))
+            with self.assertRaises(SystemExit):
+                verify(temp)
+            config.write_text(text)
+            result = subprocess.run(
+                ["python3", str(ROOT / "board/verify-kernel.py"), "--config-only", temp],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("LINUX_POST_CONFIGURE_HOOKS += SATOOSHI_VERIFY_KERNEL_CONFIG",
+                      (ROOT / "linux/early-logo.mk").read_text())
 
     def test_mbr_and_ext4_validation_rejects_corruption(self):
         verify = module("verify_image", ROOT / "board/verify-image.py").verify
